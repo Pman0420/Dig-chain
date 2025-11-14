@@ -69,8 +69,8 @@ public class BoardController : MonoBehaviour
             Vector3 localPos = view.transform.InverseTransformPoint(mouseWorldPos);
 
             float cell = view.cellSize;
-            int gridX = Mathf.FloorToInt(localPos.x / cell + 0.0001f);
-            int gridY = Mathf.FloorToInt(-localPos.y / cell + 0.0001f);
+            int gridX = Mathf.RoundToInt(localPos.x / cell);
+            int gridY = Mathf.RoundToInt(-localPos.y / cell);
 
             Debug.Log($"mouseScreen={mouseScreenPos}, world={mouseWorldPos}, local={localPos}, grid=({gridX},{gridY})");
 
