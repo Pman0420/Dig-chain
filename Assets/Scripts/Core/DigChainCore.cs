@@ -35,6 +35,23 @@ public struct FallInfo
     }
 }
 
+// ▲ 追加: アニメーション用に「1ステップ分の情報」をまとめる型
+public struct ChainStep
+{
+    // このステップで消えたブロック
+    public List<Pos> crushedBlocks;
+    // このステップのあとに発生した落下（from→to）
+    public List<FallInfo> fallInfos;
+}
+
+// ▲ 追加: 掘削～連鎖全体の結果（アニメーション用）
+public struct DigChainResult
+{
+    public int chainCount;           // 連鎖回数
+    public int totalCrushed;         // 消したブロック総数（掘削 + 連鎖）
+    public List<ChainStep> steps;    // 各ステップ（最初の掘削 + 各連鎖）の情報
+}
+
 public class DigChainCore
 {
     // 盤の高さ・幅
@@ -84,11 +101,12 @@ public class DigChainCore
     }
 #endif
 
-    // 掘削:
-    // ・(sy, sx) と同色で4近傍連結なブロックを全て破壊する
-    // ・個数に関係なく同色塊は必ず破壊
-    // 戻り値: 破壊したブロック数
-    public int DigCluster(int sy, int sx)
+    // =========================
+    // 掘削まわり
+    // =========================
+
+    // 内部実装: 掘削し、消したブロック座標を out にためる（null可）
+    private int DigClusterInternal(int sy, int sx, List<Pos> removedOut)
     {
         if (!InBounds(sy, sx)) return 0;
         int color = grid[sy, sx];
@@ -126,8 +144,23 @@ public class DigChainCore
             grid[p.y, p.x] = 0;
         }
 
+        if (removedOut != null)
+        {
+            removedOut.AddRange(comp);
+        }
+
         return comp.Count;
     }
+
+    // 公開API: 元のシンプル版（座標は返さない）
+    public int DigCluster(int sy, int sx)
+    {
+        return DigClusterInternal(sy, sx, null);
+    }
+
+    // =========================
+    // 重力
+    // =========================
 
     // 重力 + 「落下したブロックの情報」を返す
     // 今回は列ごとの全体下詰め簡易版。
@@ -164,9 +197,14 @@ public class DigChainCore
         return fallen;
     }
 
-    // 落下したブロック群を起点に、同色で3つ以上の塊のみ破壊する。
+    // =========================
+    // 連鎖（クラッシュ）まわり
+    // =========================
+
+    // 内部実装: 落下したブロック群を起点に、同色で3つ以上の塊のみ破壊する。
+    // crushedOut が non-null のとき、消した座標をすべて追加する。
     // 戻り値: 破壊した総ブロック数
-    public int CrushFromFallen(List<Pos> fallenStarts)
+    private int CrushFromFallenInternal(List<Pos> fallenStarts, List<Pos> crushedOut)
     {
         if (fallenStarts == null || fallenStarts.Count == 0) return 0;
 
@@ -214,6 +252,11 @@ public class DigChainCore
                     grid[p.y, p.x] = 0;
                 }
                 totalCrushed += comp.Count;
+
+                if (crushedOut != null)
+                {
+                    crushedOut.AddRange(comp);
+                }
             }
             // 3未満の塊は壊さない
         }
@@ -221,7 +264,13 @@ public class DigChainCore
         return totalCrushed;
     }
 
-    // 掘削後の連鎖処理:
+    // 互換用: もともとのシンプル版 API（座標は返さない）
+    public int CrushFromFallen(List<Pos> fallenStarts)
+    {
+        return CrushFromFallenInternal(fallenStarts, null);
+    }
+
+    // 掘削後の連鎖処理: （従来のロジック版）
     // ・引数 initialFallInfos = 掘削→重力 直後の落下情報
     // ・毎ステップ:
     //   - 落下ブロック群を起点に3個以上塊を破壊
@@ -278,8 +327,115 @@ public class DigChainCore
         return chain;
     }
 
-    // 「掘削→重力→連鎖（連鎖中は再び落下）」を一気に処理する。
-    // Unity側からは普通これだけ呼べばOK。
+    // =========================
+    // 新・アニメーション対応版: 掘削～連鎖の「全ステップ情報」を返す
+    // =========================
+
+    public DigChainResult DigAndChainWithSteps(int y, int x)
+    {
+        var result = new DigChainResult
+        {
+            steps = new List<ChainStep>(),
+            chainCount = 0,
+            totalCrushed = 0
+        };
+
+        // --- 1. 掘削 ---
+        var digRemoved = new List<Pos>();
+        int removedDig = DigClusterInternal(y, x, digRemoved);
+        if (removedDig == 0)
+        {
+            lastChainNum = 0;
+            return result; // 何も起こらない
+        }
+
+        result.totalCrushed += removedDig;
+
+#if UNITY_EDITOR
+        Print("掘削後");
+#endif
+
+        // 掘削直後の重力
+        List<FallInfo> firstFalls = ApplyGravityAndGetFallInfos();
+
+#if UNITY_EDITOR
+        Print("掘削後 重力適用後");
+#endif
+
+        // 掘削ステップを steps[0] として登録
+        var firstStep = new ChainStep
+        {
+            crushedBlocks = new List<Pos>(digRemoved),
+            fallInfos = new List<FallInfo>(firstFalls)
+        };
+        result.steps.Add(firstStep);
+
+        // --- 2. 連鎖ステップ ---
+        int chain = 0;
+
+        // 初期の落下位置から開始
+        List<Pos> fallenStarts = new List<Pos>();
+        foreach (var f in firstFalls)
+        {
+            fallenStarts.Add(new Pos(f.toY, f.toX));
+        }
+
+        while (true)
+        {
+            var crushedThisStep = new List<Pos>();
+            int crushed = CrushFromFallenInternal(fallenStarts, crushedThisStep);
+            if (crushed == 0) break;
+
+            result.totalCrushed += crushed;
+            chain++;
+
+#if UNITY_EDITOR
+            Print($"連鎖 {chain} 回目 消去後");
+#endif
+
+            // 壊れた結果の重力
+            List<FallInfo> newFallInfos = ApplyGravityAndGetFallInfos();
+
+#if UNITY_EDITOR
+            Print($"連鎖 {chain} 回目 重力適用後");
+#endif
+
+            // この連鎖ステップを追加
+            var step = new ChainStep
+            {
+                crushedBlocks = new List<Pos>(crushedThisStep),
+                fallInfos = new List<FallInfo>(newFallInfos)
+            };
+            result.steps.Add(step);
+
+            if (newFallInfos.Count == 0) break;
+
+            // 次ステップ用の起点を更新
+            fallenStarts.Clear();
+            foreach (var fi in newFallInfos)
+            {
+                fallenStarts.Add(new Pos(fi.toY, fi.toX));
+            }
+        }
+
+        // Power計算（従来と同じ式）
+        if (chain > 0 && result.totalCrushed > 0)
+        {
+            double mult = Math.Pow(1.5, chain);
+            int gained = (int)Math.Round(result.totalCrushed * mult);
+            power += gained;
+        }
+
+        lastChainNum = chain;
+        result.chainCount = chain;
+
+        return result;
+    }
+
+    // =========================
+    // 互換用・従来API: 「掘削→重力→連鎖」を一気に処理する。
+    // Unity側からは普通これだけ呼べばOKだった版（今も使える）。
+    // =========================
     public int DigAndChain(int y, int x)
     {
         int removed = DigCluster(y, x);

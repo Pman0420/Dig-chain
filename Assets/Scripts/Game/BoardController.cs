@@ -88,11 +88,16 @@ public class BoardController : MonoBehaviour
             //view.Redraw();
             //return;
 
-            // ★本来の処理
-            int chain = core.DigAndChain(gridY, gridX);
-            view.Redraw();
+            // ⑥ 掘削＋連鎖を実行（新API版）
+            DigChainResult res = core.DigAndChainWithSteps(gridY, gridX);
 
-            Debug.Log("連鎖回数 = " + chain + " / Power = " + core.power);
+            // ⑦ アニメーション再生
+            if (res.totalCrushed > 0 && view != null)
+            {
+                view.PlayDigChainAnimation(res);
+            }
+
+            Debug.Log($"連鎖回数 = {res.chainCount} / Power = {core.power}");
         }
     }
 }

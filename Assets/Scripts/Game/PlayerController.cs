@@ -27,7 +27,7 @@ public class PlayerController : MonoBehaviour
     private void HandleDigInput()
     {
         // Space か J を押した瞬間
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.J))
+        if (Input.GetButtonDown("Dig"))
         {
             DigAtFeet();
         }
@@ -69,12 +69,15 @@ public class PlayerController : MonoBehaviour
 
         Debug.Log($"Player Dig: ターゲットマス=({gridX},{gridY}), 値={board.core.grid[gridY, gridX]}");
 
-        // ⑥ 掘削＋連鎖
-        int chain = board.core.DigAndChain(gridY, gridX);
+        // 掘削＋連鎖（アニメ用結果を受け取る）
+        DigChainResult res = board.core.DigAndChainWithSteps(gridY, gridX);
 
-        // ⑦ 盤面更新
-        board.view.Redraw();
+        // アニメーション再生
+        if (res.totalCrushed > 0 && board.view != null)
+        {
+            board.view.PlayDigChainAnimation(res);
+        }
 
-        Debug.Log($"Player Dig: 連鎖回数 = {chain}, Power = {board.core.power}");
+        Debug.Log($"Player Dig: 連鎖回数 = {res.chainCount}, Power = {board.core.power}");
     }
 }
