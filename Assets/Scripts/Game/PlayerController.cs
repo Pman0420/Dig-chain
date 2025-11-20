@@ -1,42 +1,116 @@
 using UnityEngine;
 
-// プレイヤーの横移動 + 足元掘りを担当
+// Rigidbody2D を使った横移動 + ジャンプ + 足元掘り
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField]
-    private float moveSpeed = 5f;          // 左右移動の速さ
+    [Header("移動設定")]
+    [SerializeField] private float moveSpeed = 5f;
 
-    [SerializeField]
-    private BoardController board;         // 掘削ロジックを持っている BoardController
+    [Header("ジャンプ・接地判定")]
+    [SerializeField] private float jumpSpeed = 8f;
+    [SerializeField] private Transform groundCheck;      // 足元のチェック用
+    [SerializeField] private float groundCheckRadius = 0.1f;  // groundCheckの半径（接地判定範囲）
+    [SerializeField] private LayerMask groundLayer;      // 地面レイヤー
+
+    [Header("掘削設定")]
+    [SerializeField] private BoardController board;
+
+    private Rigidbody2D rb;
+    private bool isGrounded = false;
+    private bool isTouchingWall = false;  // 壁に接触しているかどうか
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        if (rb == null)
+        {
+            Debug.LogError("PlayerController: Rigidbody2D がありません");
+        }
+    }
 
     private void Update()
     {
         HandleMove();
+        HandleJump();
         HandleDigInput();
+        Debug.Log($"isGrounded: {isGrounded}, isTouchingWall: {isTouchingWall}");
     }
 
-    // 左右移動
+    private void FixedUpdate()
+    {
+        CheckGrounded();  // 接地判定
+        CheckWall();      // 壁判定
+    }
+
+    // 左右移動：Rigidbody2D の速度を書き換える
     private void HandleMove()
     {
-        float h = Input.GetAxisRaw("Horizontal"); // -1,0,1
-        Vector3 dir = new Vector3(h, 0f, 0f);
-        transform.position += dir * moveSpeed * Time.deltaTime;
+        float h = Input.GetAxisRaw("Horizontal"); // -1, 0, 1
+        if (rb == null) return;
+
+        // 壁に接触している場合でも、地面にいるときは横移動できる
+        if (isTouchingWall && !isGrounded)
+        {
+            // 壁に接触しているときは横方向の移動を止める（空中でのみ有効）
+            rb.velocity = new Vector2(0, rb.velocity.y);
+        }
+        else
+        {
+            // 地面にいるときは、通常通り横方向に移動
+            rb.velocity = new Vector2(h * moveSpeed, rb.velocity.y);  // 横方向速度はそのまま、縦方向の速度は物理に任せる
+        }
     }
 
-    // 掘るボタン入力
+    // ジャンプ入力
+    private void HandleJump()
+    {
+        if (isGrounded && Input.GetButtonDown("Jump"))
+        {
+            rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);  // ジャンプ速度を設定
+        }
+    }
+
+    // 足元にコライダがあるかで接地判定
+    private void CheckGrounded()
+    {
+        if (groundCheck == null)
+        {
+            isGrounded = false;
+            return;
+        }
+
+        // GroundCheck の位置の小さな円と groundLayer で Overlap をチェック
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+    }
+
+    // 壁との接触をチェック
+    private void CheckWall()
+    {
+        // 壁方向に移動しているときのみチェック
+        float h = Input.GetAxisRaw("Horizontal");
+        if (h != 0)
+        {
+            // 壁との接触判定
+            isTouchingWall = Physics2D.OverlapCircle(groundCheck.position + new Vector3(h * 0.5f, 0f, 0f), groundCheckRadius, groundLayer);
+        }
+        else
+        {
+            isTouchingWall = false;
+        }
+    }
+
+    // 掘るボタン入力（地上にいるときだけ掘れる）
     private void HandleDigInput()
     {
-        // Space か J を押した瞬間
+        if (!isGrounded) return;  // 空中では掘れない
+
         if (Input.GetButtonDown("Dig"))
         {
             DigAtFeet();
         }
     }
 
-    /// <summary>
-    /// プレイヤーの「足元」に一番近いマスを掘る
-    /// 足元 = 現在のY座標から 1マス分（cellSize）下の位置として扱う。
-    /// </summary>
+    // プレイヤーの足元の1マス下を掘る
     private void DigAtFeet()
     {
         if (board == null || board.core == null || board.view == null)
@@ -47,37 +121,42 @@ public class PlayerController : MonoBehaviour
 
         float cell = board.view.cellSize;
 
-        // ① プレイヤーのワールド座標
+        // プレイヤーの位置（中心）を Board ローカル座標へ
         Vector3 worldPos = transform.position;
-
-        // ② Board を基準にしたローカル座標に変換
         Vector3 localPos = board.view.transform.InverseTransformPoint(worldPos);
 
-        // ③ 足元のローカルY座標（1マス分だけ下 = 今のY - cell）
+        // 足元1マス下
         float feetLocalY = localPos.y - cell;
 
-        // ④ ローカル座標 → マス座標（Xは近い列、Yは足元の少し下の行）
         int gridX = Mathf.RoundToInt(localPos.x / cell);
         int gridY = Mathf.RoundToInt(-feetLocalY / cell);
 
-        // ⑤ 範囲チェック
         if (gridX < 0 || gridX >= board.core.W || gridY < 0 || gridY >= board.core.H)
         {
-            Debug.Log($"Player Dig: 盤面外 grid=({gridX},{gridY}), localFeetY={feetLocalY}");
+            Debug.Log($"Player Dig: 盤面外 grid=({gridX},{gridY})");
             return;
         }
 
         Debug.Log($"Player Dig: ターゲットマス=({gridX},{gridY}), 値={board.core.grid[gridY, gridX]}");
 
-        // 掘削＋連鎖（アニメ用結果を受け取る）
+        int oldPower = board.core.power;
         DigChainResult res = board.core.DigAndChainWithSteps(gridY, gridX);
+        int newPower = board.core.power;
 
         // アニメーション再生
         if (res.totalCrushed > 0 && board.view != null)
         {
-            board.view.PlayDigChainAnimation(res);
+            board.view.PlayDigChainAnimation(res, oldPower, newPower);
         }
 
         Debug.Log($"Player Dig: 連鎖回数 = {res.chainCount}, Power = {board.core.power}");
+    }
+
+    // Sceneビューで接地判定の円が見えるように
+    private void OnDrawGizmosSelected()
+    {
+        if (groundCheck == null) return;
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);  // 接地判定範囲を視覚化
     }
 }

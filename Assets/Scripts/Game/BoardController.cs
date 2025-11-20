@@ -92,12 +92,16 @@ public class BoardController : MonoBehaviour
             DigChainResult res = core.DigAndChainWithSteps(gridY, gridX);
 
             // ⑦ アニメーション再生
+            int oldPower = core.power;
+            int newPower = core.power;
+
             if (res.totalCrushed > 0 && view != null)
             {
-                view.PlayDigChainAnimation(res);
+                view.PlayDigChainAnimation(res, oldPower, newPower);
             }
 
-            Debug.Log($"連鎖回数 = {res.chainCount} / Power = {core.power}");
+            Debug.Log($"連鎖回数 = {res.chainCount}, Power = {core.power}");
+
         }
     }
 }
