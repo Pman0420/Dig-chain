@@ -37,6 +37,10 @@ public class BoardController : MonoBehaviour
         }
 
         Debug.Log("初期盤面を表示しました。マウスクリックで掘る処理をこれから追加します。");
+        core.colorSelector.UpdateAvailableColors(core.grid);
+        core.colorSelector.InitColors();
+        Debug.Log($"現在の色 = {core.colorSelector.currentColor}, 次 = {core.colorSelector.nextColor1}, 次の次 = {core.colorSelector.nextColor2}");
+
     }
 
     // ここに後でクリック処理を足す

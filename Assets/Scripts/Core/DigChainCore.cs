@@ -1,9 +1,9 @@
 // DigChainCore.cs
 // 目的: マス単位の掘削・落下・連鎖・Power計算のみを担当する「純ロジック」クラス。
-// UnityEngine に依存しないのでテストしやすく、View/アクションと分離できる。
 
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 // グリッド上の座標
 public struct Pos
@@ -65,6 +65,9 @@ public class DigChainCore
     // 蓄積Power
     public int power;
 
+    //色選択
+    public ColorSelector colorSelector;
+
     // 最後に発生した連鎖数
     public int lastChainNum;
 
@@ -75,6 +78,7 @@ public class DigChainCore
         grid = new int[H, W];
         power = 0;
         lastChainNum = 0;
+        colorSelector = new ColorSelector();
     }
 
     // 盤面内かどうか
@@ -340,6 +344,38 @@ public class DigChainCore
             totalCrushed = 0
         };
 
+        // ★ まず範囲＆色チェック（追加部分）
+
+        // 盤面外ガード（InBounds がある前提。無ければこの2行は省いてもよい）
+        if (!InBounds(y, x))
+        {
+            lastChainNum = 0;
+            return result;
+        }
+
+        int target = grid[y, x];
+
+        // 空マスなら何も起きない
+        if (target == 0)
+        {
+            lastChainNum = 0;
+            return result;
+        }
+
+        // ColorSelector が有効なら「今掘れる色」と一致しているか確認
+        if (colorSelector != null && target != colorSelector.currentColor)
+        {
+            // 掘れない色だったので何もせず終了
+            // （アニメ・盤面変化なし）
+            // Debug.Log したければここで出してもよい
+            // UnityEngine.Debug.Log($"掘れない色: grid={target}, allowed={colorSelector.currentColor}");
+            power = 0;
+            colorSelector.ShiftColors();
+            Debug.Log("掘れない色: 次の色に進む");
+            lastChainNum = 0;
+            return result;
+        }
+
         // --- 1. 掘削 ---
         var digRemoved = new List<Pos>();
         int removedDig = DigClusterInternal(y, x, digRemoved);
@@ -347,6 +383,12 @@ public class DigChainCore
         {
             lastChainNum = 0;
             return result; // 何も起こらない
+        }
+
+        // ★ 掘削に成功したので色キューを1つ進める
+        if (colorSelector != null)
+        {
+            colorSelector.ShiftColors();
         }
 
         result.totalCrushed += removedDig;
@@ -438,18 +480,78 @@ public class DigChainCore
     // =========================
     public int DigAndChain(int y, int x)
     {
-        int removed = DigCluster(y, x);
-        if (removed == 0)
+        // 色が一致しない場合掘れない
+        if (grid[y, x] != colorSelector.currentColor)
         {
-            lastChainNum = 0;
             return 0;
         }
 
-        // 掘削後の重力（最初の落下）
-        List<FallInfo> fallInfos = ApplyGravityAndGetFallInfos();
+        // 色一致 → 掘削
+        int removed = DigCluster(y, x);
+        if (removed == 0)
+        {
+            return 0;
+        }
 
-        // この落下ブロックから始まる連鎖
+        // 色をスライド
+        colorSelector.ShiftColors();
+
+        // 掘削後の重力と連鎖処理
+        List<FallInfo> fallInfos = ApplyGravityAndGetFallInfos();
         int chain = ResolveChainWithInitialFall(fallInfos);
+
         return chain;
+    }
+}
+
+public class ColorSelector
+{
+    private System.Random rnd = new System.Random();
+
+    public int currentColor;
+    public int nextColor1;
+    public int nextColor2;
+
+    private List<int> availableColors = new List<int>();
+
+    public void UpdateAvailableColors(int[,] grid)
+    {
+        availableColors.Clear();
+        HashSet<int> set = new HashSet<int>();
+
+        int h = grid.GetLength(0);
+        int w = grid.GetLength(1);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int c = grid[y, x];
+                if (c != 0) set.Add(c);
+            }
+        }
+
+        availableColors.AddRange(set);
+    }
+
+    public void InitColors()
+    {
+        currentColor = RandomPick();
+        nextColor1 = RandomPick();
+        nextColor2 = RandomPick();
+    }
+
+    private int RandomPick()
+    {
+        if (availableColors.Count == 0) return 1;
+        return availableColors[UnityEngine.Random.Range(0, availableColors.Count)];
+    }
+
+    // ★ 掘った時に色をずらす（ShiftColors）
+    public void ShiftColors()
+    {
+        currentColor = nextColor1;
+        nextColor1 = nextColor2;
+        nextColor2 = RandomPick();
     }
 }

@@ -38,4 +38,10 @@ public class PowerUIController : MonoBehaviour
         // ゲージはなめらかに追従（見た目用）
         powerSlider.value = Mathf.Lerp(powerSlider.value, target, Time.deltaTime * lerpSpeed);
     }
+    // ゲージを0にリセット
+    public void ResetPowerSlider()
+    {
+        powerSlider.value = 0; // ゲージを0に
+    }
 }
+
