@@ -22,8 +22,10 @@ public class BoardView : MonoBehaviour
 
     private DigChainCore core;         // ロジック本体
 
-    [SerializeField]
-    private PowerManager powerManager;
+    // PowerManager は GameManager から取る
+    private PowerManager PM => GameManager.Instance?.Power;
+
+
 
     // 現在の見た目のブロックを管理するテーブル
     // blocks[y, x] が、そのマスを表現している GameObject（なければ null）
@@ -123,14 +125,19 @@ public class BoardView : MonoBehaviour
     // === 掘削＋連鎖の結果（DigChainResult）を受け取り、アニメーション再生を開始する ===
     public void PlayDigChainAnimation(DigChainResult result, int oldPower, int newPower)
     {
-        // PowerManager に「今回の増加計画」を伝える
-        if (powerManager != null && result.totalCrushed > 0)
+        if (PM != null && result.totalCrushed > 0)
         {
-            powerManager.BeginGain(oldPower, newPower, result.totalCrushed);
+            Debug.Log($"BoardView: BeginGain old={oldPower}, new={newPower}, crushed={result.totalCrushed}");
+            PM.BeginGain(oldPower, newPower, result.totalCrushed);
+        }
+        else
+        {
+            Debug.Log($"BoardView: BeginGain 未実行 PM={PM != null}, crushed={result.totalCrushed}");
         }
 
         StartCoroutine(CoPlayDigChainAnimation(result));
     }
+
 
     // 掘削＋連鎖の各ステップに従って、
     // 1) 削除されたブロックを破壊し、
@@ -159,10 +166,11 @@ public class BoardView : MonoBehaviour
                     }
 
                     // ★PowerManagerに「1ブロック消えた」ことを通知
-                    if (powerManager != null)
+                    if (PM != null)
                     {
-                        powerManager.OnBlockCrushed();
+                        PM.OnBlockCrushed();
                     }
+
                 }
             }
 

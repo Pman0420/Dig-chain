@@ -16,6 +16,9 @@ public class ColorSelectorUI : MonoBehaviour
     // index = ブロックID (0 は空なので未使用)
     [SerializeField] private Color[] blockColors;
 
+    // パワーUI
+    [SerializeField] private PowerUIController powerUIController;   // PowerUIController を直接参照
+
     private void Update()
     {
         UpdateUI();
@@ -63,5 +66,22 @@ public class ColorSelectorUI : MonoBehaviour
         if (id <= 0 || id >= blockColors.Length) return Color.white;
 
         return blockColors[id];
+    }
+    // 掘れない色の処理
+    public void HandleInvalidDig()
+    {
+        // パワーをリセット
+        if (powerUIController != null)
+        {
+            powerUIController.ResetPowerSlider();  // ゲージを0に
+        }
+
+        // 色を進める
+        if (board != null && board.core != null && board.core.colorSelector != null)
+        {
+            board.core.colorSelector.ShiftColors();  // 次の色に進める
+        }
+
+        Debug.Log("掘れない色なので、次の色に進みます。");
     }
 }

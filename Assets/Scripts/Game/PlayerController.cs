@@ -111,46 +111,43 @@ public class PlayerController : MonoBehaviour
     }
 
     // プレイヤーの足元の1マス下を掘る
-    private void DigAtFeet()
+    // プレイヤーの足元の1マス下を掘る
+  // プレイヤーの足元の1マス下を掘る
+private void DigAtFeet()
+{
+    if (board == null || board.core == null || board.view == null)
     {
-        if (board == null || board.core == null || board.view == null)
-        {
-            Debug.LogWarning("PlayerController: board / core / view が設定されていません");
-            return;
-        }
-
-        float cell = board.view.cellSize;
-
-        // プレイヤーの位置（中心）を Board ローカル座標へ
-        Vector3 worldPos = transform.position;
-        Vector3 localPos = board.view.transform.InverseTransformPoint(worldPos);
-
-        // 足元1マス下
-        float feetLocalY = localPos.y - cell;
-
-        int gridX = Mathf.RoundToInt(localPos.x / cell);
-        int gridY = Mathf.RoundToInt(-feetLocalY / cell);
-
-        if (gridX < 0 || gridX >= board.core.W || gridY < 0 || gridY >= board.core.H)
-        {
-            Debug.Log($"Player Dig: 盤面外 grid=({gridX},{gridY})");
-            return;
-        }
-
-        Debug.Log($"Player Dig: ターゲットマス=({gridX},{gridY}), 値={board.core.grid[gridY, gridX]}");
-
-        int oldPower = board.core.power;
-        DigChainResult res = board.core.DigAndChainWithSteps(gridY, gridX);
-        int newPower = board.core.power;
-
-        // アニメーション再生
-        if (res.totalCrushed > 0 && board.view != null)
-        {
-            board.view.PlayDigChainAnimation(res, oldPower, newPower);
-        }
-
-        Debug.Log($"Player Dig: 連鎖回数 = {res.chainCount}, Power = {board.core.power}");
+        Debug.LogWarning("PlayerController: board / core / view が設定されていません");
+        return;
     }
+
+    float cell = board.view.cellSize;
+
+    // プレイヤーの位置（中心）を Board ローカル座標へ
+    Vector3 worldPos = transform.position;
+    Vector3 localPos = board.view.transform.InverseTransformPoint(worldPos);
+
+    // 足元1マス下
+    float feetLocalY = localPos.y - cell;
+
+    int gridX = Mathf.RoundToInt(localPos.x / cell);
+    int gridY = Mathf.RoundToInt(-feetLocalY / cell);
+
+    if (gridX < 0 || gridX >= board.core.W || gridY < 0 || gridY >= board.core.H)
+    {
+        Debug.Log($"Player Dig: 盤面外 grid=({gridX},{gridY})");
+        return;
+    }
+
+    Debug.Log($"Player Dig: ターゲットマス=({gridX},{gridY}), 値={board.core.grid[gridY, gridX]}");
+
+    // ★ 本体処理は BoardController に任せる
+    DigChainResult res = board.DigAt(gridY, gridX);
+
+    Debug.Log($"Player Dig: 連鎖回数 = {res.chainCount}, Power = {board.core.power}");
+}
+
+
 
     // Sceneビューで接地判定の円が見えるように
     private void OnDrawGizmosSelected()

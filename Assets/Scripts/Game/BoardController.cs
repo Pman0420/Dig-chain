@@ -1,18 +1,38 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class BoardController : MonoBehaviour
 {
+    [Header("盤面サイズ（論理）")]
     public int height = 6;
     public int width = 6;
 
+    [Header("見た目")]
     public BoardView view;
 
+    // 盤面ロジック
     public DigChainCore core { get; private set; }
 
-    void Start()
+    // ★ UI 用の読み取り専用プロパティを追加 ★
+    public int CurrentPower
+    {
+        get { return core != null ? core.power : 0; }
+    }
+
+    public ColorSelector ColorSelector
+    {
+        get { return core != null ? core.colorSelector : null; }
+    }
+
+    private void Awake()
     {
         core = new DigChainCore(height, width);
+    }
 
+
+    private void Start()
+    {
+        // 固定の初期盤面（あとでステージデータに差し替え可）
         int[,] init =
         {
             {1,2,3,4,1,2},
@@ -31,83 +51,108 @@ public class BoardController : MonoBehaviour
             }
         }
 
-        if (view != null)
-        {
-            view.SetCore(core);   // ここで初期盤面を描画
-        }
-
-        Debug.Log("初期盤面を表示しました。マウスクリックで掘る処理をこれから追加します。");
+        // 色候補の更新と初期色決定
         core.colorSelector.UpdateAvailableColors(core.grid);
         core.colorSelector.InitColors();
         Debug.Log($"現在の色 = {core.colorSelector.currentColor}, 次 = {core.colorSelector.nextColor1}, 次の次 = {core.colorSelector.nextColor2}");
 
+        if (view != null)
+        {
+            view.SetCore(core);
+            view.Redraw();
+        }
+
+        Debug.Log("初期盤面を表示しました。");
     }
 
-    // ここに後でクリック処理を足す
-    void Update()
+    /// <summary>
+    /// (gridY, gridX) のマスを掘る窓口。
+    /// Core に処理を投げ、View にアニメーションを依頼する。
+    /// </summary>
+    public DigChainResult DigAt(int gridY, int gridX)
     {
-        // 左クリックした瞬間だけ処理する
-        if (Input.GetMouseButtonDown(0))
+        // 空の結果（何も起きなかったとき用）
+        DigChainResult EmptyResult()
         {
-            Debug.Log("クリック検知");
-
-            if (core == null || view == null)
+            return new DigChainResult
             {
-                Debug.LogWarning("core または view が null");
-                return;
-            }
-
-            Vector3 mouseScreenPos = Input.mousePosition;
-
-            Camera cam = Camera.main;
-            if (cam == null)
-            {
-                Debug.LogError("Camera.main が見つかりません");
-                return;
-            }
-
-            Vector3 mouseWorldPos = cam.ScreenToWorldPoint(
-                new Vector3(mouseScreenPos.x, mouseScreenPos.y, -cam.transform.position.z)
-            );
-
-            Vector3 localPos = view.transform.InverseTransformPoint(mouseWorldPos);
-
-            float cell = view.cellSize;
-            int gridX = Mathf.RoundToInt(localPos.x / cell);
-            int gridY = Mathf.RoundToInt(-localPos.y / cell);
-
-            Debug.Log($"mouseScreen={mouseScreenPos}, world={mouseWorldPos}, local={localPos}, grid=({gridX},{gridY})");
-
-            if (gridX < 0 || gridX >= core.W || gridY < 0 || gridY >= core.H)
-            {
-                Debug.Log("盤面外クリック: (" + gridX + "," + gridY + ")");
-                return;
-            }
-
-            Debug.Log($"マスを掘る: ({gridX},{gridY}), そのマスの値={core.grid[gridY, gridX]}");
-
-            // ★テスト1: 直接そのマスを空にしてみる
-            //   これで見た目が変わるかどうかをまず確認
-            //core.grid[gridY, gridX] = 0;
-            //view.Redraw();
-            //return;
-
-            // ⑥ 掘削＋連鎖を実行（新API版）
-            DigChainResult res = core.DigAndChainWithSteps(gridY, gridX);
-
-            // ⑦ アニメーション再生
-            int oldPower = core.power;
-            int newPower = core.power;
-
-            if (res.totalCrushed > 0 && view != null)
-            {
-                view.PlayDigChainAnimation(res, oldPower, newPower);
-            }
-
-            Debug.Log($"連鎖回数 = {res.chainCount}, Power = {core.power}");
-
+                steps = new List<ChainStep>(),
+                chainCount = 0,
+                totalCrushed = 0
+            };
         }
+
+        if (core == null)
+        {
+            Debug.LogWarning("BoardController.DigAt: core が null");
+            return EmptyResult();
+        }
+
+        if (!core.InBounds(gridY, gridX))
+        {
+            Debug.Log($"BoardController.DigAt: 盤面外 ({gridY},{gridX})");
+            return EmptyResult();
+        }
+
+        int cellColor = core.grid[gridY, gridX];
+
+        // 0 = 空マス → 何も起こさない（仕様：空振り扱いにはしない）
+        if (cellColor == 0)
+        {
+            Debug.Log("BoardController.DigAt: 空マスなので何も起こりません。");
+            return EmptyResult();
+        }
+
+        // ★ 色制限チェック：currentColor と違う色を掘ろうとしたら「空振り」
+        int current = core.colorSelector.currentColor;
+        // 色ミスマッチ：空振りペナルティ（パワー全消費＋色を1つ進める）
+        if (cellColor != current)
+        {
+            Debug.Log($"BoardController.DigAt: 色ミスマッチ! target={cellColor}, current={current} → パワーリセット＆色ローテ");
+
+            // パワーをリセット
+            core.power = 0;
+
+            if (view != null && GameManager.Instance.Power != null)
+            {
+                GameManager.Instance.Power.ResetAll();
+                // ← 論理＆ゲージを両方ゼロに
+            }
+            // 色を 1つ進める（now ← next1, next1 ← next2, next2 ← ランダム）
+            core.colorSelector.ShiftColors();
+            // UIは毎フレーム colorSelector / power を見ているので、ここで値だけ変えればOK
+            return EmptyResult();
+        }
+
+        // ここまで来たら「正しい色で掘った」→ 掘削＋連鎖実行
+        int oldPower = core.power;
+
+        DigChainResult res = core.DigAndChainWithSteps(gridY, gridX);
+
+        if (res.totalCrushed == 0)
+        {
+            Debug.Log("BoardController.DigAt: 掘ったが消えるブロックはありませんでした。");
+            return res;
+        }
+
+        int newPower = core.power;
+
+        // 盤面に存在する色リストを更新し、その中から次の色を決める
+        core.colorSelector.UpdateAvailableColors(core.grid);
+        core.colorSelector.ShiftColors();
+
+        // 見た目更新（アニメーション）
+        if (view != null)
+        {
+            view.PlayDigChainAnimation(res, oldPower, newPower);
+        }
+        else
+        {
+            Debug.LogWarning("BoardController: view が未設定です。");
+        }
+
+        Debug.Log($"BoardController.DigAt: total={res.totalCrushed}, chain={res.chainCount}, power={core.power}");
+        return res;
     }
 }
-
 
