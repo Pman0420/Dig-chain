@@ -33,6 +33,7 @@ public class PlayerController : MonoBehaviour
         HandleMove();
         HandleJump();
         HandleDigInput();
+        HandlePlaceInput();
         Debug.Log($"isGrounded: {isGrounded}, isTouchingWall: {isTouchingWall}");
     }
 
@@ -156,4 +157,51 @@ private void DigAtFeet()
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);  // 接地判定範囲を視覚化
     }
+    // ブロックを「足元1マス下」に置く
+    // ブロックを足元1マス下に「置く」処理
+    private void HandlePlaceInput()
+    {
+        // Input Manager で "Place" を設定してある前提
+        if (!Input.GetButtonDown("Place")) return;
+
+        if (board == null || board.core == null || board.view == null)
+        {
+            Debug.LogWarning("PlayerController: board / core / view が設定されていません（Place）");
+            return;
+        }
+
+        float cell = board.view.cellSize;
+
+        // プレイヤーの中心を Board ローカル座標に変換
+        Vector3 worldPos = transform.position;
+        Vector3 localPos = board.view.transform.InverseTransformPoint(worldPos);
+
+        // 足元1マス下をターゲットマスとする
+        float feetLocalY = localPos.y - cell;
+
+        int gridX = Mathf.RoundToInt(localPos.x / cell);
+        int gridY = Mathf.RoundToInt(-feetLocalY / cell);
+
+        Debug.Log($"Player Place: local={localPos}, grid=({gridY},{gridX})");
+
+        if (gridX < 0 || gridX >= board.core.W || gridY < 0 || gridY >= board.core.H)
+        {
+            Debug.Log($"Player Place: 盤面外 grid=({gridY},{gridX})");
+            return;
+        }
+
+        // BoardController に処理を任せる
+        DigChainResult res = board.PlaceAt(gridY, gridX);
+
+        if (res.steps == null || res.steps.Count == 0)
+        {
+            Debug.Log("Player Place: 置けなかった（埋まっているなど）");
+        }
+        else
+        {
+            Debug.Log("Player Place: 成功してブロックを配置（Redraw 済み）");
+        }
+    }
+
+
 }

@@ -179,9 +179,9 @@ public class BoardView : MonoBehaviour
                 yield return new WaitForSeconds(crushDelay);
 
             // --- 2. 落ちるブロックをアニメーションさせる ---
+            // --- 2. 落ちるブロックをアニメーションさせる ---
             if (step.fallInfos != null && step.fallInfos.Count > 0)
             {
-                // どの GameObject がどこからどこへ動くかをまとめる
                 var animList = new List<(GameObject go, Vector3 fromPos, Vector3 toPos)>();
 
                 foreach (FallInfo fi in step.fallInfos)
@@ -190,14 +190,37 @@ public class BoardView : MonoBehaviour
                     if (!InBounds(fi.toY, fi.toX)) continue;
 
                     GameObject go = blocks[fi.fromY, fi.fromX];
-                    if (go == null) continue; // 何かの理由で存在しなければスキップ
+
+                    // ★ 新しく置かれたブロックなど、「見た目がまだ無い」場合はここで作る
+                    if (go == null)
+                    {
+                        // to マスにある値を参照（そこで止まる色）
+                        int v = core.grid[fi.toY, fi.toX];
+                        if (v == 0)
+                        {
+                            // 何もないならアニメ不要
+                            continue;
+                        }
+
+                        go = Instantiate(blockPrefab, transform);
+                        go.transform.localPosition = CellToLocalPos(fi.fromY, fi.fromX);
+
+                        var sr2 = go.GetComponent<SpriteRenderer>();
+                        if (sr2 != null)
+                        {
+                            sr2.color = GetColorForValue(v);
+                        }
+
+                        // from の位置に一旦登録（これが落ち始めの場所）
+                        blocks[fi.fromY, fi.fromX] = go;
+                    }
 
                     Vector3 fromPos = CellToLocalPos(fi.fromY, fi.fromX);
                     Vector3 toPos = CellToLocalPos(fi.toY, fi.toX);
 
                     animList.Add((go, fromPos, toPos));
 
-                    // 論理上の位置テーブルだけ先に更新しておく
+                    // 論理位置テーブルだけ先に更新
                     blocks[fi.toY, fi.toX] = go;
                     blocks[fi.fromY, fi.fromX] = null;
                 }
@@ -217,16 +240,39 @@ public class BoardView : MonoBehaviour
                     yield return null;
                 }
 
-                // 最終位置にピタッとスナップ
+                // 最終位置にピタッ
                 foreach (var a in animList)
                 {
                     a.go.transform.localPosition = a.toPos;
                 }
             }
 
+
             // 連鎖ステップ間のポーズ
             if (chainPause > 0f)
                 yield return new WaitForSeconds(chainPause);
         }
     }
+    // BoardView.cs に追加
+    public void EnsureBlockVisualAt(int y, int x)
+    {
+        if (core == null) return;
+        if (!InBounds(y, x)) return;
+
+        int v = core.grid[y, x];
+        if (v == 0) return;              // 空マスなら何もしない
+        if (blocks[y, x] != null) return; // すでに見た目があるなら何もしない
+
+        GameObject go = Instantiate(blockPrefab, transform);
+        go.transform.localPosition = CellToLocalPos(y, x);
+
+        var sr = go.GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            sr.color = GetColorForValue(v);
+        }
+
+        blocks[y, x] = go;
+    }
+
 }

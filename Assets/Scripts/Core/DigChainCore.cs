@@ -106,9 +106,9 @@ public class ChainStep
 
 public class DigChainResult
 {
-    public List<ChainStep> steps;        // 0: 掘削, 1以降: 連鎖
-    public int chainCount;              // 連鎖数
-    public int totalCrushed;            // 合計で消えたブロック数
+    public List<ChainStep> steps;        // 0: 掘削 or 置き, 1以降: 連鎖
+    public int chainCount;   // 連鎖数
+    public int totalCrushed; // 合計で消えたブロック数
 }
 
 // =======================
@@ -124,13 +124,13 @@ public class DigChainCore
     // 0 = 空, 1..n = 色（ブロックID）
     public int[,] grid;
 
-    // 蓄積Power（既存のまま残しておく）
+    // 蓄積Power
     public int power;
 
     // 最後に発生した連鎖数
     public int lastChainNum;
 
-    // 色選択（既存の UI や BoardController から参照される）
+    // 色選択
     public ColorSelector colorSelector { get; private set; }
 
     public DigChainCore(int h, int w)
@@ -295,7 +295,7 @@ public class DigChainCore
         return totalCrushed;
     }
 
-    // ---------- 盤面だけ更新する純ロジック ----------
+    // ---------- 盤面だけ更新する純ロジック（掘り） ----------
     public DigChainResult DigAndChainLogicOnly(int y, int x)
     {
         var result = new DigChainResult
@@ -383,7 +383,7 @@ public class DigChainCore
         return result;
     }
 
-    // ---------- 既存のAPI：powerもここで更新する版 ----------
+    // ---------- 既存API：掘り＋Power更新 ----------
     public DigChainResult DigAndChainWithSteps(int y, int x)
     {
         DigChainResult result = DigAndChainLogicOnly(y, x);
@@ -395,6 +395,51 @@ public class DigChainCore
             power += gained;
         }
 
+        return result;
+    }
+
+    // ====================================================
+    // ★ 新規：ブロックを置いて「重力だけ」かける処理
+    // ====================================================
+    public DigChainResult PlaceBlockAndFall(int y, int x, int color)
+    {
+        var result = new DigChainResult
+        {
+            steps = new List<ChainStep>(),
+            chainCount = 0,
+            totalCrushed = 0
+        };
+
+        // 範囲外なら何もしない
+        if (!InBounds(y, x)) return result;
+
+        // 既にブロックがあるマスには置けない
+        if (grid[y, x] != 0) return result;
+
+        // ① ブロックを置く
+        grid[y, x] = color;
+
+#if UNITY_EDITOR
+        Print("ブロック設置後");
+#endif
+
+        // ② 重力をかける（列ごとの下詰め簡易版）
+        List<FallInfo> falls = ApplyGravityAndGetFallInfos();
+
+#if UNITY_EDITOR
+        Print("ブロック設置後 重力適用後");
+#endif
+
+        // ③ 「置き＋落下」用の1ステップを作る（消去はなし）
+        var step0 = new ChainStep
+        {
+            crushedBlocks = new List<Pos>(),     // 置いただけなので空
+            fallInfos = new List<FallInfo>(falls)  // 今回の落下情報
+        };
+
+        result.steps.Add(step0);
+
+        // Power や lastChainNum は変更しない（壊していないため）
         return result;
     }
 }

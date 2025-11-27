@@ -154,5 +154,67 @@ public class BoardController : MonoBehaviour
         Debug.Log($"BoardController.DigAt: total={res.totalCrushed}, chain={res.chainCount}, power={core.power}");
         return res;
     }
+    // 掘りと同じように、(gridY, gridX) に currentColor を置く
+    public DigChainResult PlaceAt(int gridY, int gridX)
+    {
+        var empty = new DigChainResult
+        {
+            steps = new List<ChainStep>(),
+            chainCount = 0,
+            totalCrushed = 0
+        };
+
+        if (core == null || view == null || core.colorSelector == null)
+        {
+            Debug.LogWarning("BoardController.PlaceAt: core / view / colorSelector が設定されていません");
+            return empty;
+        }
+
+        if (gridY < 0 || gridY >= core.H || gridX < 0 || gridX >= core.W)
+        {
+            Debug.Log($"BoardController.PlaceAt: 範囲外 ({gridY},{gridX})");
+            return empty;
+        }
+
+        // すでに埋まっているマスには置かない
+        if (core.grid[gridY, gridX] != 0)
+        {
+            Debug.Log("BoardController.PlaceAt: すでにブロックがあるので置けない");
+            return empty;
+        }
+
+        int color = core.colorSelector.currentColor;
+        int oldPower = core.power;   // 置きでは増えないが形式上保存
+
+        DigChainResult res = core.PlaceBlockAndFall(gridY, gridX, color);
+
+        // PlaceBlockAndFall の結果を確認
+        bool hasStep0 = (res.steps != null && res.steps.Count > 0);
+        bool hasFall = hasStep0 &&
+                        res.steps[0].fallInfos != null &&
+                        res.steps[0].fallInfos.Count > 0;
+
+        // ★ 1) 一切落下が発生しなかった（＝その場に置かれた）場合
+        if (!hasFall)
+        {
+            // grid 上はすでに更新されている前提
+            view.EnsureBlockVisualAt(gridY, gridX);
+
+            // 色ローテーションだけ回す
+            core.colorSelector.ShiftColors();
+
+            Debug.Log("BoardController.PlaceAt: 落下なし配置 → その場で表示のみ");
+            return res;
+        }
+
+        // ★ 2) 落下が発生した場合はアニメーションに任せる
+        core.colorSelector.ShiftColors();
+        view.PlayDigChainAnimation(res, oldPower, core.power);  // power は増えない想定
+
+        Debug.Log("BoardController.PlaceAt: 落下あり配置 → アニメ再生");
+        return res;
+    }
+
+
 }
 
