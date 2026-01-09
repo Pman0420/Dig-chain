@@ -2,6 +2,9 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
+
+    [Header("Character Reaction")]
+    [SerializeField] private ChainReactionCharacter chainCharacter;
     public static GameManager Instance { get; private set; }
 
     public bool IsGameOver { get; private set; } = false;
@@ -46,6 +49,12 @@ public class GameManager : MonoBehaviour
         Debug.Log("[GameManager] GAME START!");
         bgmSource.UnPause();
         overbgmSource.Pause();
+        int chainForReaction = 0;
+
+        if (chainCharacter != null)
+        {
+            chainCharacter.OnChainResolved(chainForReaction, false);
+        }
         // 念のためタイムスケールも戻しておく
         Time.timeScale = 1f;
     }
@@ -58,6 +67,8 @@ public class GameManager : MonoBehaviour
         int finalScore = (Power != null) ? Power.TotalScore : 0;
         bool updated = TryUpdateBestScore(finalScore);
         Debug.Log($"[GameManager] FinalScore={finalScore}, BestScore={GetBestScore()}, Updated={updated}");
+        int chainForReaction = -1;
+        chainCharacter.OnChainResolved(chainForReaction, false);
         bgmSource.Pause();
         overbgmSource.UnPause();
         if (gameOverUI != null)

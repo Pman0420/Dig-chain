@@ -15,6 +15,8 @@ public class ChainReactionCharacter : MonoBehaviour
     private static readonly int TrgBigCheer = Animator.StringToHash("BigCheer");
     private static readonly int TrgSuperCheer = Animator.StringToHash("SuperCheer");
     private static readonly int TrgSad = Animator.StringToHash("Sad"); // 任意：ミス時など
+    private static readonly int TrgOver = Animator.StringToHash("GameOver"); // 任意：ミス時など
+    private static readonly int TrgIdle = Animator.StringToHash("Idle");
 
     private void Awake()
     {
@@ -50,6 +52,14 @@ public class ChainReactionCharacter : MonoBehaviour
         else if (chainCount >= cheerChain)
         {
             animator.SetTrigger(TrgCheer);
+        }
+        else if (chainCount >= 0)
+        {
+            animator.SetTrigger(TrgIdle);
+        }
+        else if (chainCount < 0)
+        {
+            animator.SetTrigger(TrgOver);
         }
         // 1連鎖以下は反応なし（好みで Idle/Smile などを追加してもOK）
     }

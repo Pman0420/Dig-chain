@@ -1947,7 +1947,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -269.7, y: -1.4986}
+  m_AnchoredPosition: {x: -265, y: -1}
   m_SizeDelta: {x: 200, y: 400}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &394380596
@@ -6441,7 +6441,7 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 7
+  m_fontStyle: 5
   m_HorizontalAlignment: 1
   m_VerticalAlignment: 256
   m_textAlignment: 65535
@@ -6981,8 +6981,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4280052786
-  m_fontColor: {r: 0.19546907, g: 0.4245283, b: 0.11013707, a: 1}
+    rgba: 4279966679
+  m_fontColor: {r: 0.8415094, g: 0.10637947, b: 0.10637947, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -7531,8 +7531,8 @@ Transform:
   m_GameObject: {fileID: 1621530754}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 5.9932, y: -5.6015, z: 0}
+  m_LocalScale: {x: 0.44672042, y: 0.40015498, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -8289,6 +8289,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b59d3cc69925cc48b6d7ae811ff8c7c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  chainCharacter: {fileID: 394380598}
   powerManager: {fileID: 2066509249}
   gameOverUI: {fileID: 769672121}
   bgmSource: {fileID: 165268066}
@@ -8470,6 +8471,10 @@ PrefabInstance:
       propertyPath: bestScoreText
       value: 
       objectReference: {fileID: 1174063316}
+    - target: {fileID: 2040562286402923747, guid: ed6d146c1030c6a4388129be77ef52a6, type: 3}
+      propertyPath: chainCharacter
+      value: 
+      objectReference: {fileID: 394380598}
     - target: {fileID: 2040562286402923747, guid: ed6d146c1030c6a4388129be77ef52a6, type: 3}
       propertyPath: finalScoreText
       value: 
