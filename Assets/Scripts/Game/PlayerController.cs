@@ -8,14 +8,22 @@ public class PlayerController : MonoBehaviour
 
     [Header("ジャンプ・接地判定")]
     [SerializeField] private float jumpSpeed = 8f;
-    [SerializeField] private Transform groundCheck;      // 足元のチェック用
-    [SerializeField] private float groundCheckRadius = 0.1f;  // groundCheckの半径（接地判定範囲）
+    [SerializeField] private Transform groundCheck;      // 足元のチェック用（掘り・Gizmo 用にも使用）
+    [SerializeField] private float groundCheckRadius = 0.1f;  // groundCheckの半径（接地判定範囲）※フォールバック用
     [SerializeField] private LayerMask groundLayer;      // 地面レイヤー
 
     [Header("掘削設定")]
     [SerializeField] private BoardController board;
 
+    [Header("キャラクターのスプライト設定")]
+    [SerializeField] private Sprite idleSprite;    // キャラクターの待機状態のスプライト
+    [SerializeField] private Sprite jumpSprite;    // ジャンプ状態のスプライト
+    [SerializeField] private Sprite moveSprite;    // 移動状態のスプライト
+
+    private SpriteRenderer spriteRenderer;  // SpriteRenderer
+
     private Rigidbody2D rb;
+    private BoxCollider2D col;      // ★ 追加：接地判定用に BoxCollider2D を使用
     private bool isGrounded = false;
     private bool isTouchingWall = false;  // 壁に接触しているかどうか
 
@@ -26,73 +34,174 @@ public class PlayerController : MonoBehaviour
         {
             Debug.LogError("PlayerController: Rigidbody2D がありません");
         }
+
+        col = GetComponent<BoxCollider2D>();
+        if (col == null)
+        {
+            Debug.LogWarning("PlayerController: BoxCollider2D がありません。接地判定は groundCheck の OverlapCircle にフォールバックします。");
+        }
+        spriteRenderer = GetComponent<SpriteRenderer>();  // SpriteRendererを取得
+        if (spriteRenderer == null)
+        {
+            Debug.LogError("PlayerController: SpriteRenderer がありません");
+        }
     }
 
     private void Update()
     {
+        // ゲームオーバー時は操作無効
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
+        {
+            // rb.velocity = Vector2.zero; // 完全停止したいなら有効化
+            return;
+        }
+
+        // ★ 毎フレーム最初に接地・壁判定を更新
+        CheckGrounded();
+        CheckWall();
+
         HandleMove();
         HandleJump();
         HandleDigInput();
         HandlePlaceInput();
-        Debug.Log($"isGrounded: {isGrounded}, isTouchingWall: {isTouchingWall}");
+
+        // デバッグ表示
+        //Debug.Log($"isGrounded: {isGrounded}, isTouchingWall: {isTouchingWall}, velY={rb.velocity.y}");
     }
 
     private void FixedUpdate()
     {
-        CheckGrounded();  // 接地判定
-        CheckWall();      // 壁判定
+        // 物理ステップごとに再確認しても良いが、
+        // ここでの再計算は任意。Update で毎フレームやっているので必須ではない。
+        // CheckGrounded();
+        // CheckWall();
     }
 
     // 左右移動：Rigidbody2D の速度を書き換える
     private void HandleMove()
     {
-        float h = Input.GetAxisRaw("Horizontal"); // -1, 0, 1
         if (rb == null) return;
+
+        float h = Input.GetAxisRaw("Horizontal"); // -1, 0, 1
 
         // 壁に接触している場合でも、地面にいるときは横移動できる
         if (isTouchingWall && !isGrounded)
         {
             // 壁に接触しているときは横方向の移動を止める（空中でのみ有効）
-            rb.velocity = new Vector2(0, rb.velocity.y);
+            rb.velocity = new Vector2(0f, rb.velocity.y);
         }
         else
         {
-            // 地面にいるときは、通常通り横方向に移動
-            rb.velocity = new Vector2(h * moveSpeed, rb.velocity.y);  // 横方向速度はそのまま、縦方向の速度は物理に任せる
+            // 通常の横移動
+            rb.velocity = new Vector2(h * moveSpeed, rb.velocity.y);
+        }
+        if (h != 0)
+        {
+            // 移動中のスプライトに切り替え
+            spriteRenderer.sprite = moveSprite;
+        }
+        else
+        {
+            // 待機中のスプライトに切り替え
+            spriteRenderer.sprite = idleSprite;
         }
     }
 
     // ジャンプ入力
     private void HandleJump()
     {
+        if (Input.GetButtonDown("Jump"))
+        {
+            Debug.Log($"[Player] Jump input detected. isGrounded={isGrounded}, velY(before)={rb.velocity.y}");
+        }
+
         if (isGrounded && Input.GetButtonDown("Jump"))
         {
-            rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);  // ジャンプ速度を設定
+            if (rb == null) return;
+
+            Vector2 v = rb.velocity;
+            v.y = jumpSpeed;
+            rb.velocity = v;
+            // ジャンプ中のスプライトに切り替え
+            spriteRenderer.sprite = jumpSprite;
+            Debug.Log($"[Player] Jump applied. velY(after)={rb.velocity.y}");
+        }
+        else if (!isGrounded && Input.GetButtonDown("Jump"))
+        {
+            // 接地していないのにジャンプしようとした場合のログ
+            Debug.Log("[Player] Jump cancelled because not grounded.");
         }
     }
 
-    // 足元にコライダがあるかで接地判定
+    // 足元にコライダがあるかで接地判定（BoxCast ベース）
     private void CheckGrounded()
     {
-        if (groundCheck == null)
+        bool newGrounded = false;
+
+        if (col != null)
         {
-            isGrounded = false;
-            return;
+            // ★ プレイヤーの BoxCollider2D から少しだけ下に BoxCast して接地判定
+            float extraHeight = 0.05f;
+            RaycastHit2D hit = Physics2D.BoxCast(
+                col.bounds.center,
+                col.bounds.size,
+                0f,
+                Vector2.down,
+                extraHeight,
+                groundLayer
+            );
+
+            newGrounded = (hit.collider != null);
+        }
+        else if (groundCheck != null)
+        {
+            // BoxCollider2D がない場合は従来通り groundCheck の OverlapCircle を使用
+            newGrounded = Physics2D.OverlapCircle(
+                groundCheck.position,
+                groundCheckRadius,
+                groundLayer
+            );
+        }
+        else
+        {
+            // 判定元が無い場合は常に空中扱い
+            newGrounded = false;
         }
 
-        // GroundCheck の位置の小さな円と groundLayer で Overlap をチェック
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+        if (newGrounded != isGrounded)
+        {
+            Debug.Log($"[Ground] {isGrounded} -> {newGrounded}");
+        }
+
+        isGrounded = newGrounded;
     }
 
     // 壁との接触をチェック
     private void CheckWall()
     {
-        // 壁方向に移動しているときのみチェック
         float h = Input.GetAxisRaw("Horizontal");
-        if (h != 0)
+
+        if (h != 0f)
         {
-            // 壁との接触判定
-            isTouchingWall = Physics2D.OverlapCircle(groundCheck.position + new Vector3(h * 0.5f, 0f, 0f), groundCheckRadius, groundLayer);
+            // 壁方向の少し先を判定する
+            Vector3 origin;
+
+            if (col != null)
+            {
+                // コライダ中心から少し横にずらした位置
+                origin = col.bounds.center + new Vector3(h * (col.bounds.extents.x + 0.05f), 0f, 0f);
+            }
+            else if (groundCheck != null)
+            {
+                // フォールバック：groundCheck 基準で少し横
+                origin = groundCheck.position + new Vector3(h * 0.5f, 0f, 0f);
+            }
+            else
+            {
+                origin = transform.position + new Vector3(h * 0.5f, 0f, 0f);
+            }
+
+            isTouchingWall = Physics2D.OverlapCircle(origin, groundCheckRadius, groundLayer);
         }
         else
         {
@@ -101,107 +210,95 @@ public class PlayerController : MonoBehaviour
     }
 
     // 掘るボタン入力（地上にいるときだけ掘れる）
+    // 掘るボタン入力（地上にいるときだけ掘れる）
     private void HandleDigInput()
     {
-        if (!isGrounded) return;  // 空中では掘れない
-
+        // Jキーで掘る
         if (Input.GetButtonDown("Dig"))
         {
+            Debug.Log($"[Player] DIG input detected. isGrounded={isGrounded}");
+
+            if (!isGrounded)
+            {
+                Debug.Log("[Player] Dig cancelled because not grounded.");
+                return; // 空中では掘れない
+            }
+
             DigAtFeet();
         }
     }
 
     // プレイヤーの足元の1マス下を掘る
-    // プレイヤーの足元の1マス下を掘る
-  // プレイヤーの足元の1マス下を掘る
-private void DigAtFeet()
-{
-    if (board == null || board.core == null || board.view == null)
+    private void DigAtFeet()
     {
-        Debug.LogWarning("PlayerController: board / core / view が設定されていません");
-        return;
+        if (board == null || board.view == null)
+        {
+            Debug.LogWarning("PlayerController: board / view が設定されていません");
+            return;
+        }
+
+        Vector3 feetWorldPos = (groundCheck != null)
+            ? groundCheck.position
+            : transform.position;
+
+        float cell = board.view.cellSize;
+
+        // 足元から少し下にずらした位置をターゲット
+        Vector3 targetWorldPos = feetWorldPos + Vector3.down * (0.6f * cell);
+
+        int gridY, gridX;
+        // ★ ここで Nearest 版を使う
+        if (!board.view.WorldToCellNearest(targetWorldPos, out gridY, out gridX))
+        {
+            Debug.Log($"Player Dig: 盤面外 grid=({gridX},{gridY})");
+            return;
+        }
+
+        Debug.Log($"Player Dig: 掘りターゲット=({gridX},{gridY})");
+
+        // 本体処理は BoardController に任せる
+        DigChainResult res = board.DigAt(gridY, gridX);
+        Debug.Log($"Player Dig: 連鎖回数 = {res.chainCount}");
     }
 
-    float cell = board.view.cellSize;
-
-    // プレイヤーの位置（中心）を Board ローカル座標へ
-    Vector3 worldPos = transform.position;
-    Vector3 localPos = board.view.transform.InverseTransformPoint(worldPos);
-
-    // 足元1マス下
-    float feetLocalY = localPos.y - cell;
-
-    int gridX = Mathf.RoundToInt(localPos.x / cell);
-    int gridY = Mathf.RoundToInt(-feetLocalY / cell);
-
-    if (gridX < 0 || gridX >= board.core.W || gridY < 0 || gridY >= board.core.H)
-    {
-        Debug.Log($"Player Dig: 盤面外 grid=({gridX},{gridY})");
-        return;
-    }
-
-    Debug.Log($"Player Dig: ターゲットマス=({gridX},{gridY}), 値={board.core.grid[gridY, gridX]}");
-
-    // ★ 本体処理は BoardController に任せる
-    DigChainResult res = board.DigAt(gridY, gridX);
-
-    Debug.Log($"Player Dig: 連鎖回数 = {res.chainCount}, Power = {board.core.power}");
-}
-
-
-
-    // Sceneビューで接地判定の円が見えるように
-    private void OnDrawGizmosSelected()
-    {
-        if (groundCheck == null) return;
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);  // 接地判定範囲を視覚化
-    }
-    // ブロックを「足元1マス下」に置く
     // ブロックを足元1マス下に「置く」処理
     private void HandlePlaceInput()
     {
         // Input Manager で "Place" を設定してある前提
         if (!Input.GetButtonDown("Place")) return;
 
-        if (board == null || board.core == null || board.view == null)
+        if (board == null || board.view == null)
         {
-            Debug.LogWarning("PlayerController: board / core / view が設定されていません（Place）");
+            Debug.LogWarning("PlayerController: board / view が設定されていません");
             return;
         }
+
+        Vector3 feetWorldPos = (groundCheck != null)
+            ? groundCheck.position
+            : transform.position;
 
         float cell = board.view.cellSize;
+        Vector3 targetWorldPos = feetWorldPos + Vector3.down * (0.6f * cell);
 
-        // プレイヤーの中心を Board ローカル座標に変換
-        Vector3 worldPos = transform.position;
-        Vector3 localPos = board.view.transform.InverseTransformPoint(worldPos);
-
-        // 足元1マス下をターゲットマスとする
-        float feetLocalY = localPos.y - cell;
-
-        int gridX = Mathf.RoundToInt(localPos.x / cell);
-        int gridY = Mathf.RoundToInt(-feetLocalY / cell);
-
-        Debug.Log($"Player Place: local={localPos}, grid=({gridY},{gridX})");
-
-        if (gridX < 0 || gridX >= board.core.W || gridY < 0 || gridY >= board.core.H)
+        int gridY, gridX;
+        if (!board.view.WorldToCellNearest(targetWorldPos, out gridY, out gridX))
         {
-            Debug.Log($"Player Place: 盤面外 grid=({gridY},{gridX})");
+            Debug.Log($"Player Place: 盤面外 grid=({gridX},{gridY})");
             return;
         }
 
-        // BoardController に処理を任せる
-        DigChainResult res = board.PlaceAt(gridY, gridX);
+        Debug.Log($"Player Place: 設置ターゲット=({gridX},{gridY})");
 
-        if (res.steps == null || res.steps.Count == 0)
-        {
-            Debug.Log("Player Place: 置けなかった（埋まっているなど）");
-        }
-        else
-        {
-            Debug.Log("Player Place: 成功してブロックを配置（Redraw 済み）");
-        }
+        // ★ 実際のロジックは BoardController に任せる
+        board.PlaceAt(gridY, gridX);
     }
 
+    // Sceneビューで接地判定の円が見えるように
+    private void OnDrawGizmosSelected()
+    {
+        if (groundCheck == null) return;
 
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);  // 接地判定範囲を視覚化（目安）
+    }
 }

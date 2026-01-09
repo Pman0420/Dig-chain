@@ -13,6 +13,8 @@ public class PowerManager : MonoBehaviour
     private float gainPerBlock;   // ブロック1個あたり何ポイント増えるか
     private int blocksRemaining;  // この掘削でまだ反映していないブロック数
 
+    public int TotalScore { get; private set; }
+
     // 掘削開始時に呼ぶ
     public void BeginGain(int oldPower, int newPower, int totalBlocks)
     {
@@ -36,6 +38,10 @@ public class PowerManager : MonoBehaviour
         }
 
         float gain = newPower - oldPower;
+        if (gain > 0)
+        {
+            TotalScore += (int)gain;
+        }
         gainPerBlock = gain / totalBlocks;
         blocksRemaining = totalBlocks;
     }
@@ -70,5 +76,16 @@ public class PowerManager : MonoBehaviour
         targetPower = 0;
         gainPerBlock = 0;
         blocksRemaining = 0;
+        TotalScore = 0;
+
+    }
+    public void ResetPower()
+    {
+        LogicalPower = 0;
+        CurrentPower = 0;
+        targetPower = 0;
+        gainPerBlock = 0;
+        blocksRemaining = 0;
+
     }
 }

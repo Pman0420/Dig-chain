@@ -1,22 +1,22 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 
 // =======================
-// FŠÇ—ƒNƒ‰ƒX
+// è‰²ç®¡ç†ã‚¯ãƒ©ã‚¹
 // =======================
 public class ColorSelector
 {
-    // ¡Œ@‚ê‚éF
+    // ä»Šæ˜ã‚Œã‚‹è‰²
     public int currentColor;
 
-    // Ÿ‚ÉŒ@‚ê‚éF
+    // æ¬¡ã«æ˜ã‚Œã‚‹è‰²
     public int nextColor1;
     public int nextColor2;
 
-    // —˜—p‰Â”\‚ÈFˆê——i”Õ–Ê‚©‚ç’Šoj
+    // åˆ©ç”¨å¯èƒ½ãªè‰²ä¸€è¦§ï¼ˆç›¤é¢ã‹ã‚‰æŠ½å‡ºï¼‰
     private List<int> availableColors = new List<int>();
 
-    // System.Random ‚Å–ˆ‰ñ“¯‚¶‚É‚È‚è‚É‚­‚­‚·‚é
+    // System.Random ã§æ¯å›åŒã˜ã«ãªã‚Šã«ããã™ã‚‹
     private static System.Random rng = new System.Random();
 
     public void UpdateAvailableColors(int[,] grid)
@@ -49,7 +49,7 @@ public class ColorSelector
         nextColor2 = RandomPick();
     }
 
-    // ƒ‰ƒ“ƒ_ƒ€æ“¾
+    // ãƒ©ãƒ³ãƒ€ãƒ å–å¾—
     private int RandomPick()
     {
         if (availableColors.Count == 0) return 1;
@@ -57,7 +57,12 @@ public class ColorSelector
         return availableColors[idx];
     }
 
-    // Œ@‚Á‚½‚Æ‚«‚ÉƒJƒ‰[‚ğƒXƒ‰ƒCƒh
+    public int GetRandomColor()
+    {
+        return RandomPick();  // æ—¢å­˜ã® private ãƒ¡ã‚½ãƒƒãƒ‰ã‚’å‘¼ã¶ã ã‘
+    }
+
+    // æ˜ã£ãŸã¨ãã«ã‚«ãƒ©ãƒ¼ã‚’ã‚¹ãƒ©ã‚¤ãƒ‰
     public void ShiftColors()
     {
         currentColor = nextColor1;
@@ -67,7 +72,7 @@ public class ColorSelector
 }
 
 // =======================
-// ƒOƒŠƒbƒhÀ•W / —‰ºî•ñ / ˜A½Œ‹‰Ê
+// ã‚°ãƒªãƒƒãƒ‰åº§æ¨™ / è½ä¸‹æƒ…å ± / é€£é–çµæœ
 // =======================
 
 public struct Pos
@@ -100,37 +105,37 @@ public struct FallInfo
 
 public class ChainStep
 {
-    public List<Pos> crushedBlocks; // ‚±‚ÌƒXƒeƒbƒv‚ÅÁ‚¦‚½ƒuƒƒbƒN
-    public List<FallInfo> fallInfos;     // ‚±‚ÌƒXƒeƒbƒv‚Å—‰º‚µ‚½ƒuƒƒbƒN
+    public List<Pos> crushedBlocks; // ã“ã®ã‚¹ãƒ†ãƒƒãƒ—ã§æ¶ˆãˆãŸãƒ–ãƒ­ãƒƒã‚¯
+    public List<FallInfo> fallInfos;     // ã“ã®ã‚¹ãƒ†ãƒƒãƒ—ã§è½ä¸‹ã—ãŸãƒ–ãƒ­ãƒƒã‚¯
 }
 
 public class DigChainResult
 {
-    public List<ChainStep> steps;        // 0: Œ@í or ’u‚«, 1ˆÈ~: ˜A½
-    public int chainCount;   // ˜A½”
-    public int totalCrushed; // ‡Œv‚ÅÁ‚¦‚½ƒuƒƒbƒN”
+    public List<ChainStep> steps;        // 0: æ˜å‰Š or ç½®ã, 1ä»¥é™: é€£é–
+    public int chainCount;   // é€£é–æ•°
+    public int totalCrushed; // åˆè¨ˆã§æ¶ˆãˆãŸãƒ–ãƒ­ãƒƒã‚¯æ•°
 }
 
 // =======================
-// ”Õ–ÊƒƒWƒbƒN–{‘Ì
+// ç›¤é¢ãƒ­ã‚¸ãƒƒã‚¯æœ¬ä½“
 // =======================
 
 public class DigChainCore
 {
-    // ”Õ‚Ì‚‚³E•
+    // ç›¤ã®é«˜ã•ãƒ»å¹…
     public int H { get; private set; }
     public int W { get; private set; }
 
-    // 0 = ‹ó, 1..n = FiƒuƒƒbƒNIDj
+    // 0 = ç©º, 1..n = è‰²ï¼ˆãƒ–ãƒ­ãƒƒã‚¯IDï¼‰
     public int[,] grid;
 
-    // ’~ÏPower
+    // è“„ç©Power
     public int power;
 
-    // ÅŒã‚É”­¶‚µ‚½˜A½”
+    // æœ€å¾Œã«ç™ºç”Ÿã—ãŸé€£é–æ•°
     public int lastChainNum;
 
-    // F‘I‘ğ
+    // è‰²é¸æŠ
     public ColorSelector colorSelector { get; private set; }
 
     public DigChainCore(int h, int w)
@@ -166,7 +171,7 @@ public class DigChainCore
     }
 #endif
 
-    // ---------- Œ@íi“à•”—pj ----------
+    // ---------- æ˜å‰Šï¼ˆå†…éƒ¨ç”¨ï¼‰ ----------
     private int DigClusterInternal(int sy, int sx, List<Pos> removed)
     {
         if (!InBounds(sy, sx)) return 0;
@@ -207,7 +212,7 @@ public class DigChainCore
         return removed.Count;
     }
 
-    // ---------- d—Í ----------
+    // ---------- é‡åŠ› ----------
     public List<FallInfo> ApplyGravityAndGetFallInfos()
     {
         var fallen = new List<FallInfo>();
@@ -239,7 +244,7 @@ public class DigChainCore
         return fallen;
     }
 
-    // ---------- ˜A½F—‰ºƒuƒƒbƒN‹N“_‚Å3ŒÂˆÈã‚Ì‰ò‚ğ‰ó‚· ----------
+    // ---------- é€£é–ï¼šè½ä¸‹ãƒ–ãƒ­ãƒƒã‚¯èµ·ç‚¹ã§3å€‹ä»¥ä¸Šã®å¡Šã‚’å£Šã™ ----------
     private int CrushFromFallenInternal(List<Pos> fallenStarts, List<Pos> crushedOut)
     {
         if (fallenStarts == null || fallenStarts.Count == 0) return 0;
@@ -295,7 +300,7 @@ public class DigChainCore
         return totalCrushed;
     }
 
-    // ---------- ”Õ–Ê‚¾‚¯XV‚·‚éƒƒƒWƒbƒNiŒ@‚èj ----------
+    // ---------- ç›¤é¢ã ã‘æ›´æ–°ã™ã‚‹ç´”ãƒ­ã‚¸ãƒƒã‚¯ï¼ˆæ˜ã‚Šï¼‰ ----------
     public DigChainResult DigAndChainLogicOnly(int y, int x)
     {
         var result = new DigChainResult
@@ -305,7 +310,7 @@ public class DigChainCore
             totalCrushed = 0
         };
 
-        // Œ@í
+        // æ˜å‰Š
         var digRemoved = new List<Pos>();
         int removedDig = DigClusterInternal(y, x, digRemoved);
         if (removedDig == 0)
@@ -317,17 +322,17 @@ public class DigChainCore
         result.totalCrushed += removedDig;
 
 #if UNITY_EDITOR
-        Print("Œ@íŒã");
+        Print("æ˜å‰Šå¾Œ");
 #endif
 
-        // Œ@í’¼Œã‚Ìd—Í
+        // æ˜å‰Šç›´å¾Œã®é‡åŠ›
         List<FallInfo> firstFalls = ApplyGravityAndGetFallInfos();
 
 #if UNITY_EDITOR
-        Print("Œ@íŒã d—Í“K—pŒã");
+        Print("æ˜å‰Šå¾Œ é‡åŠ›é©ç”¨å¾Œ");
 #endif
 
-        // Œ@íƒXƒeƒbƒv‚ğ steps[0] ‚É
+        // æ˜å‰Šã‚¹ãƒ†ãƒƒãƒ—ã‚’ steps[0] ã«
         var firstStep = new ChainStep
         {
             crushedBlocks = new List<Pos>(digRemoved),
@@ -335,7 +340,7 @@ public class DigChainCore
         };
         result.steps.Add(firstStep);
 
-        // ˜A½
+        // é€£é–
         int chain = 0;
         List<Pos> fallenStarts = new List<Pos>();
         foreach (var f in firstFalls)
@@ -353,13 +358,13 @@ public class DigChainCore
             chain++;
 
 #if UNITY_EDITOR
-            Print($"˜A½ {chain} ‰ñ–Ú Á‹Œã");
+            Print($"é€£é– {chain} å›ç›® æ¶ˆå»å¾Œ");
 #endif
 
             List<FallInfo> newFallInfos = ApplyGravityAndGetFallInfos();
 
 #if UNITY_EDITOR
-            Print($"˜A½ {chain} ‰ñ–Ú d—Í“K—pŒã");
+            Print($"é€£é– {chain} å›ç›® é‡åŠ›é©ç”¨å¾Œ");
 #endif
 
             var step = new ChainStep
@@ -383,7 +388,7 @@ public class DigChainCore
         return result;
     }
 
-    // ---------- Šù‘¶APIFŒ@‚è{PowerXV ----------
+    // ---------- æ—¢å­˜APIï¼šæ˜ã‚Šï¼‹Poweræ›´æ–° ----------
     public DigChainResult DigAndChainWithSteps(int y, int x)
     {
         DigChainResult result = DigAndChainLogicOnly(y, x);
@@ -399,7 +404,7 @@ public class DigChainCore
     }
 
     // ====================================================
-    // š V‹KFƒuƒƒbƒN‚ğ’u‚¢‚Äud—Í‚¾‚¯v‚©‚¯‚éˆ—
+    // â˜… æ–°è¦ï¼šãƒ–ãƒ­ãƒƒã‚¯ã‚’ç½®ã„ã¦ã€Œé‡åŠ›ã ã‘ã€ã‹ã‘ã‚‹å‡¦ç†
     // ====================================================
     public DigChainResult PlaceBlockAndFall(int y, int x, int color)
     {
@@ -410,36 +415,95 @@ public class DigChainCore
             totalCrushed = 0
         };
 
-        // ”ÍˆÍŠO‚È‚ç‰½‚à‚µ‚È‚¢
+        // ç¯„å›²å¤–ãªã‚‰ä½•ã‚‚ã—ãªã„
         if (!InBounds(y, x)) return result;
 
-        // Šù‚ÉƒuƒƒbƒN‚ª‚ ‚éƒ}ƒX‚É‚Í’u‚¯‚È‚¢
+        // æ—¢ã«ãƒ–ãƒ­ãƒƒã‚¯ãŒã‚ã‚‹ãƒã‚¹ã«ã¯ç½®ã‘ãªã„
         if (grid[y, x] != 0) return result;
 
-        // ‡@ ƒuƒƒbƒN‚ğ’u‚­
+        // â‘  ãƒ–ãƒ­ãƒƒã‚¯ã‚’ç½®ã
         grid[y, x] = color;
 
 #if UNITY_EDITOR
-        Print("ƒuƒƒbƒNİ’uŒã");
+        Print("ãƒ–ãƒ­ãƒƒã‚¯è¨­ç½®å¾Œ");
 #endif
 
-        // ‡A d—Í‚ğ‚©‚¯‚éi—ñ‚²‚Æ‚Ì‰º‹l‚ßŠÈˆÕ”Åj
+        // â‘¡ é‡åŠ›ã‚’ã‹ã‘ã‚‹ï¼ˆåˆ—ã”ã¨ã®ä¸‹è©°ã‚ç°¡æ˜“ç‰ˆï¼‰
         List<FallInfo> falls = ApplyGravityAndGetFallInfos();
 
 #if UNITY_EDITOR
-        Print("ƒuƒƒbƒNİ’uŒã d—Í“K—pŒã");
+        Print("ãƒ–ãƒ­ãƒƒã‚¯è¨­ç½®å¾Œ é‡åŠ›é©ç”¨å¾Œ");
 #endif
 
-        // ‡B u’u‚«{—‰ºv—p‚Ì1ƒXƒeƒbƒv‚ğì‚éiÁ‹‚Í‚È‚µj
+        // â‘¢ ã€Œç½®ãï¼‹è½ä¸‹ã€ç”¨ã®1ã‚¹ãƒ†ãƒƒãƒ—ã‚’ä½œã‚‹ï¼ˆæ¶ˆå»ã¯ãªã—ï¼‰
         var step0 = new ChainStep
         {
-            crushedBlocks = new List<Pos>(),     // ’u‚¢‚½‚¾‚¯‚È‚Ì‚Å‹ó
-            fallInfos = new List<FallInfo>(falls)  // ¡‰ñ‚Ì—‰ºî•ñ
+            crushedBlocks = new List<Pos>(),     // ç½®ã„ãŸã ã‘ãªã®ã§ç©º
+            fallInfos = new List<FallInfo>(falls)  // ä»Šå›ã®è½ä¸‹æƒ…å ±
         };
 
         result.steps.Add(step0);
 
-        // Power ‚â lastChainNum ‚Í•ÏX‚µ‚È‚¢i‰ó‚µ‚Ä‚¢‚È‚¢‚½‚ßj
+        // Power ã‚„ lastChainNum ã¯å¤‰æ›´ã—ãªã„ï¼ˆå£Šã—ã¦ã„ãªã„ãŸã‚ï¼‰
         return result;
+    }
+    /// <summary>
+    /// ç›¤é¢ã‚’1è¡Œã¶ã‚“ã€Œã›ã‚Šä¸Šã’ã‚‹ã€ã€‚
+    /// ä¸Šã®è¡Œã«æŠ¼ã—å‡ºã•ã‚Œã‚‹å‹•ãã‚’ FallInfo ã¨ã—ã¦è¿”ã™ã€‚
+    /// ä¸€ç•ªä¸‹ã®è¡Œã«ã¯ãƒ©ãƒ³ãƒ€ãƒ ãªè‰²ã‚’æ•·ãè©°ã‚ã‚‹ã€‚
+    /// â€» é€£é–ã‚„Powerè¨ˆç®—ã¯ã“ã“ã§ã¯è¡Œã‚ãªã„ã€‚
+    /// </summary>
+    public List<FallInfo> RaiseOneLine()
+    {
+        var moved = new List<FallInfo>();
+
+        // â€»å…ˆã«ä¸Šæ–¹å‘ã¸ã‚³ãƒ”ãƒ¼ï¼ˆy=H-1 ã‹ã‚‰ y=1 ã¸ï¼‰
+        for (int y = 1; y < H; y++)
+        {
+            int toY = y - 1;
+            for (int x = 0; x < W; x++)
+            {
+                int c = grid[y, x];
+                grid[toY, x] = c;
+
+                // å…ƒã«ãƒ–ãƒ­ãƒƒã‚¯ãŒã‚ã£ãŸãªã‚‰ã€ç§»å‹•æƒ…å ±ã‚’è¨˜éŒ²
+                if (c != 0)
+                {
+                    moved.Add(new FallInfo(y, x, toY, x));
+                }
+            }
+        }
+
+        // ä¸€ç•ªä¸‹ã®è¡Œã‚’ãƒ©ãƒ³ãƒ€ãƒ ãªãƒ–ãƒ­ãƒƒã‚¯ã§åŸ‹ã‚ã‚‹
+        for (int x = 0; x < W; x++)
+        {
+            int c = 0;
+
+            // ColorSelector ãŒä½¿ãˆã‚‹ãªã‚‰ã€ãã®å€™è£œã‹ã‚‰è‰²ã‚’é¸ã¶
+            if (colorSelector != null)
+            {
+                // å€™è£œãŒã¾ã ç©ºã®å ´åˆã¯æ›´æ–°ã—ã¦ãŠã
+                if (true)
+                {
+                    colorSelector.UpdateAvailableColors(grid);
+                }
+                c = colorSelector.GetRandomColor();
+            }
+            else
+            {
+                // å¿µã®ãŸã‚ã®ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ï¼ˆ1ã€œ4ï¼‰
+                c = 1 + (x % 4);
+            }
+
+            grid[H - 1, x] = c;
+        }
+
+        // ç›¤é¢ãŒå¤‰ã‚ã£ãŸã®ã§è‰²å€™è£œã‚‚æ›´æ–°ã—ã¦ãŠã
+        if (colorSelector != null)
+        {
+            colorSelector.UpdateAvailableColors(grid);
+        }
+
+        return moved;
     }
 }

@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8078208467726602914}
   - component: {fileID: 329785210870493423}
   - component: {fileID: 4108026991534210597}
-  m_Layer: 6
+  m_Layer: 3
   m_Name: BlockSprite
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -71,11 +71,11 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
+  m_SortingLayerID: 104022105
+  m_SortingLayer: 1
   m_SortingOrder: 0
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
-  m_Color: {r: 0.8773585, g: 0.29383236, b: 0.29383236, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

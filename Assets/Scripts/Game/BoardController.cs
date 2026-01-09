@@ -1,19 +1,47 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 public class BoardController : MonoBehaviour
 {
-    [Header("”Õ–ÊƒTƒCƒYi˜_—j")]
-    public int height = 6;
-    public int width = 6;
+    [Header("Character Reaction")]
+    [SerializeField] private ChainReactionCharacter chainCharacter;
 
-    [Header("Œ©‚½–Ú")]
+    [Header("ç›¤é¢ã‚µã‚¤ã‚ºï¼ˆè«–ç†ï¼‰")]
+    public int height = 40;
+    public int width = 10;
+
+    [Header("è¦‹ãŸç›®")]
     public BoardView view;
 
-    // ”Õ–ÊƒƒWƒbƒN
+    [Header("SE")]
+    [SerializeField] private AudioSource seSource;   // SEå†ç”Ÿç”¨ï¼ˆAudioSourceï¼‰
+    [SerializeField] private AudioClip placeSE;      // ç½®ã„ãŸã¨ãã®SE
+
+
+    // ç›¤é¢ãƒ­ã‚¸ãƒƒã‚¯
     public DigChainCore core { get; private set; }
 
-    // š UI —p‚Ì“Ç‚İæ‚èê—pƒvƒƒpƒeƒB‚ğ’Ç‰Á š
+    // ã›ã‚Šä¸Šã’é–“éš”ï¼ˆç§’ï¼‰
+    [SerializeField]
+    private float riseInterval = 5f;
+
+    private float riseTimer = 0f;
+
+    // ç›¤é¢ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ä¸­ãƒ•ãƒ©ã‚°
+    private bool isBoardBusy = false;
+    public bool IsBoardBusy => isBoardBusy;
+    //  ã‚¢ãƒ‹ãƒ¡çµ‚äº†å¾Œã®ã‚¯ãƒ¼ãƒ«ãƒ€ã‚¦ãƒ³ç§’æ•°ï¼ˆInspectorã§èª¿æ•´å¯èƒ½ï¼‰
+    [SerializeField] private float riseCooldownAfterAnimation = 0.3f;
+    //  å®Ÿéš›ã«ã‚«ã‚¦ãƒ³ãƒˆãƒ€ã‚¦ãƒ³ã™ã‚‹ã‚¯ãƒ¼ãƒ«ãƒ€ã‚¦ãƒ³ã‚¿ã‚¤ãƒãƒ¼
+    private float riseCooldownTimer = 0f;
+
+    // Busy ã‚’åˆ‡ã‚Šæ›¿ãˆã‚‹å…±é€šé–¢æ•°ï¼ˆãƒ­ã‚°ä»˜ãï¼‰
+    private void SetBoardBusy(bool busy, string reason)
+    {
+        isBoardBusy = busy;
+        Debug.Log($"[BoardBusy] => {busy} ({reason})");
+    }
+
     public int CurrentPower
     {
         get { return core != null ? core.power : 0; }
@@ -32,46 +60,159 @@ public class BoardController : MonoBehaviour
 
     private void Start()
     {
-        // ŒÅ’è‚Ì‰Šú”Õ–Êi‚ ‚Æ‚ÅƒXƒe[ƒWƒf[ƒ^‚É·‚µ‘Ö‚¦‰Âj
-        int[,] init =
-        {
-            {1,2,3,4,1,2},
-            {1,1,1,4,2,3},
-            {2,3,3,1,2,4},
-            {1,2,2,4,1,1},
-            {4,3,2,2,4,2},
-            {4,3,3,4,1,1}
-        };
+        // â˜… ã¾ãš core ã‚’ä½œã‚‹ï¼ˆInspector ã®å€¤ã§é«˜ã•ãƒ»å¹…ã¯æ±ºã¾ã£ã¦ã„ã‚‹ï¼‰
+        //    height=40, width=10 ãªã©ã‚’ Inspector ã§è¨­å®šã—ã¦ãŠãã“ã¨
+        core = new DigChainCore(height, width);
 
         for (int y = 0; y < core.H; y++)
         {
             for (int x = 0; x < core.W; x++)
             {
-                core.grid[y, x] = init[y, x];
+                core.grid[y, x] = 0;
             }
         }
 
-        // FŒó•â‚ÌXV‚Æ‰ŠúFŒˆ’è
+
+        // 3) ç›¤é¢ã®ã€Œä¸‹ã®æ–¹ã ã‘ã€ãƒ©ãƒ³ãƒ€ãƒ ã§åŸ‹ã‚ã‚‹
+        //    â†’ ã“ã“ã‚’å¤‰ãˆã‚‹ã“ã¨ã§ã€ŒåºƒãŒã£ã¦ã‚‹ã€ã®ãŒè¦–è¦šçš„ã«ã‚ã‹ã‚Šã‚„ã™ããªã‚‹
+        int filledRows = Mathf.Min(3, core.H);  // ä¸‹ã‹ã‚‰3è¡Œã¶ã‚“ãƒ©ãƒ³ãƒ€ãƒ ï¼ˆç›¤é¢ãŒå°ã•ã„å ´åˆã¯èª¿æ•´ï¼‰
+        int startY = core.H - filledRows;    // ä¸‹ã‹ã‚‰ filledRows è¡Œã¶ã‚“
+
+        for (int y = startY; y < core.H; y++)
+        {
+            for (int x = 0; x < core.W; x++)
+            {
+                // 1ã€œ4 ã®è‰²ã‚’ãƒ©ãƒ³ãƒ€ãƒ ã§å…¥ã‚Œã‚‹
+                core.grid[y, x] = Random.Range(1, 5); // 1,2,3,4 ã®ã©ã‚Œã‹
+            }
+        }
+
+        // â˜… è‰²å€™è£œã®æ›´æ–°ã¨åˆæœŸè‰²æ±ºå®š
         core.colorSelector.UpdateAvailableColors(core.grid);
         core.colorSelector.InitColors();
-        Debug.Log($"Œ»İ‚ÌF = {core.colorSelector.currentColor}, Ÿ = {core.colorSelector.nextColor1}, Ÿ‚ÌŸ = {core.colorSelector.nextColor2}");
-
-        if (view != null)
+        Debug.Log($"ç¾åœ¨ã®è‰² = {core.colorSelector.currentColor}, æ¬¡ = {core.colorSelector.nextColor1}, æ¬¡ã®æ¬¡ = {core.colorSelector.nextColor2}");
+   if (view != null)
         {
             view.SetCore(core);
             view.Redraw();
         }
 
-        Debug.Log("‰Šú”Õ–Ê‚ğ•\¦‚µ‚Ü‚µ‚½B");
+        Debug.Log($"åˆæœŸç›¤é¢ã‚’ä¸‹ç«¯ã«ã‚»ãƒƒãƒˆã—ã¾ã—ãŸã€‚ç›¤ã‚µã‚¤ã‚º H={core.H}, W={core.W}");
+    }
+
+        // â˜… ç›¤é¢æç”»
+     
+    private void Update()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
+        {
+            return;
+        }
+
+        // â˜… B: ç›¤é¢ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ä¸­ã¯ã›ã‚Šä¸ŠãŒã‚Šã‚¿ã‚¤ãƒãƒ¼ã‚’æ­¢ã‚ã‚‹
+        if (isBoardBusy)
+        {
+            Debug.Log("[BoardBusy] Update: busy ã®ãŸã‚ riseTimer åŠ ç®—ã‚’ã‚¹ã‚­ãƒƒãƒ—");
+            return;
+        }
+
+        // â˜… A: ã‚¢ãƒ‹ãƒ¡çµ‚äº†ç›´å¾Œã®ã‚¯ãƒ¼ãƒ«ãƒ€ã‚¦ãƒ³ä¸­ã‚‚ã›ã‚Šä¸ŠãŒã‚Šã‚’æ­¢ã‚ã‚‹
+        if (riseCooldownTimer > 0f)
+        {
+            riseCooldownTimer -= Time.deltaTime;
+            // å¿µã®ãŸã‚ 0 æœªæº€ã«ãªã‚‰ãªã„ã‚ˆã†ã«ã‚¯ãƒ©ãƒ³ãƒ—
+            if (riseCooldownTimer < 0f) riseCooldownTimer = 0f;
+
+            Debug.Log($"[RiseCooldown] ã‚¯ãƒ¼ãƒ«ãƒ€ã‚¦ãƒ³ä¸­: æ®‹ã‚Š {riseCooldownTimer:F2} ç§’");
+            return;
+        }
+
+        // â˜… æ™®é€šæ™‚ï¼šã›ã‚Šä¸ŠãŒã‚Šã‚¿ã‚¤ãƒãƒ¼ã‚’é€²ã‚ã‚‹
+        riseTimer += Time.deltaTime;
+
+        if (riseTimer >= riseInterval)
+        {
+            Debug.Log("[Rise] ã‚¿ã‚¤ãƒãƒ¼åˆ°é” â†’ DoRise å‘¼ã³å‡ºã—");
+            DoRise();
+            riseTimer = 0f;
+        }
     }
 
     /// <summary>
-    /// (gridY, gridX) ‚Ìƒ}ƒX‚ğŒ@‚é‘‹ŒûB
-    /// Core ‚Éˆ—‚ğ“Š‚°AView ‚ÉƒAƒjƒ[ƒVƒ‡ƒ“‚ğˆË—Š‚·‚éB
+    /// ä¸€ç•ªä¸Šã®è¡Œã«ãƒ–ãƒ­ãƒƒã‚¯ãŒã‚ã‚‹ã‹ã©ã†ã‹ã‚’ãƒã‚§ãƒƒã‚¯ â†’ ã‚ã‚Œã°ã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼
+    /// </summary>
+    private bool CheckGameOverByTopRow()
+    {
+        // ç›¤é¢ã® 0 è¡Œç›®ï¼ˆæœ€ä¸Šæ®µï¼‰ã‚’è¦‹ã¦ã€1ã€œ4 ã®ãƒ–ãƒ­ãƒƒã‚¯ãŒã‚ã‚Œã°ã‚¢ã‚¦ãƒˆ
+        for (int x = 0; x < core.W; x++)
+        {
+            if (core.grid[0, x] != 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    private void DoRise()
+    {
+        if (core == null || view == null) return;
+
+        // â‘  1 è¡Œã›ã‚Šä¸Šã’ï¼ˆcore å†…éƒ¨ã®ãƒ­ã‚¸ãƒƒã‚¯æ›´æ–°ï¼‰
+        List<FallInfo> moved = core.RaiseOneLine();
+
+        // â‘¡ ã“ã®æ™‚ç‚¹ã®ç›¤é¢ã§ã€ãƒˆãƒƒãƒ—è¡Œã«ãƒ–ãƒ­ãƒƒã‚¯ãŒä¹—ã£ã¦ã„ã‚‹ã‹åˆ¤å®š
+        bool willGameOver = CheckGameOverByTopRow();
+
+        if (moved != null && moved.Count > 0)
+        {
+            // â˜… ã›ã‚Šä¸Šã’ã‚¢ãƒ‹ãƒ¡ãŒç™ºç”Ÿã™ã‚‹å ´åˆã ã‘ Busy ã«ã™ã‚‹
+            SetBoardBusy(true, "RiseAnimation start");
+
+            // â˜… ã‚¢ãƒ‹ãƒ¡å®Œäº†æ™‚ã« GameOver åˆ¤å®šçµæœã‚’åæ˜ ã•ã›ã¦ã‹ã‚‰ BoardBusy ã‚’è§£é™¤
+            view.PlayRiseAnimation(moved, () =>
+            {
+                if (willGameOver)
+                {
+                    GameManager.Instance?.GameOver();
+                }
+
+                OnBoardAnimationFinished();
+            });
+        }
+        else
+        {
+            Debug.Log("[Rise] moved ãŒç©ºã ã£ãŸãŸã‚ã‚¢ãƒ‹ãƒ¡ç„¡ã—");
+
+            // â˜… ã‚¢ãƒ‹ãƒ¡ãŒãªã„å ´åˆã‚‚ã€ãƒˆãƒƒãƒ—è¡ŒãŒåŸ‹ã¾ã£ã¦ã„ã‚Œã°å³ã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼
+            if (willGameOver)
+            {
+                GameManager.Instance?.GameOver();
+            }
+        }
+    }
+
+
+
+    // â˜… BoardView ã‹ã‚‰å‘¼ã‚“ã§ã‚‚ã‚‰ã†ã€Œã‚¢ãƒ‹ãƒ¡çµ‚äº†ã€ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯
+    public void OnBoardAnimationFinished()
+    {
+        Debug.Log("[BoardBusy] OnBoardAnimationFinished() å‘¼ã³å‡ºã— â†’ false ã«æˆ»ã™");
+        SetBoardBusy(false, "Animation finished");
+
+        // â˜…ã‚¢ãƒ‹ãƒ¡ç›´å¾Œã®ã‚¯ãƒ¼ãƒ«ãƒ€ã‚¦ãƒ³é–‹å§‹
+        riseCooldownTimer = riseCooldownAfterAnimation;
+    }
+
+
+
+
+    /// <summary>
+    /// (gridY, gridX) ã®ãƒã‚¹ã‚’æ˜ã‚‹çª“å£ã€‚
+    /// Core ã«å‡¦ç†ã‚’æŠ•ã’ã€View ã«ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã‚’ä¾é ¼ã™ã‚‹ã€‚
     /// </summary>
     public DigChainResult DigAt(int gridY, int gridX)
     {
-        // ‹ó‚ÌŒ‹‰Êi‰½‚à‹N‚«‚È‚©‚Á‚½‚Æ‚«—pj
+        // ç©ºã®çµæœï¼ˆä½•ã‚‚èµ·ããªã‹ã£ãŸã¨ãç”¨ï¼‰
         DigChainResult EmptyResult()
         {
             return new DigChainResult
@@ -84,77 +225,91 @@ public class BoardController : MonoBehaviour
 
         if (core == null)
         {
-            Debug.LogWarning("BoardController.DigAt: core ‚ª null");
+            Debug.LogWarning("BoardController.DigAt: core ãŒ null");
             return EmptyResult();
         }
 
         if (!core.InBounds(gridY, gridX))
         {
-            Debug.Log($"BoardController.DigAt: ”Õ–ÊŠO ({gridY},{gridX})");
+            Debug.Log($"BoardController.DigAt: ç›¤é¢å¤– ({gridY},{gridX})");
             return EmptyResult();
         }
 
         int cellColor = core.grid[gridY, gridX];
 
-        // 0 = ‹óƒ}ƒX ¨ ‰½‚à‹N‚±‚³‚È‚¢id—lF‹óU‚èˆµ‚¢‚É‚Í‚µ‚È‚¢j
+        // 0 = ç©ºãƒã‚¹ â†’ ä½•ã‚‚èµ·ã“ã•ãªã„ï¼ˆä»•æ§˜ï¼šç©ºæŒ¯ã‚Šæ‰±ã„ã«ã¯ã—ãªã„ï¼‰
         if (cellColor == 0)
         {
-            Debug.Log("BoardController.DigAt: ‹óƒ}ƒX‚È‚Ì‚Å‰½‚à‹N‚±‚è‚Ü‚¹‚ñB");
+            Debug.Log("BoardController.DigAt: ç©ºãƒã‚¹ãªã®ã§ä½•ã‚‚èµ·ã“ã‚Šã¾ã›ã‚“ã€‚");
             return EmptyResult();
         }
 
-        // š F§ŒÀƒ`ƒFƒbƒNFcurrentColor ‚Æˆá‚¤F‚ğŒ@‚ë‚¤‚Æ‚µ‚½‚çu‹óU‚èv
+        // â˜… è‰²åˆ¶é™ãƒã‚§ãƒƒã‚¯ï¼šcurrentColor ã¨é•ã†è‰²ã‚’æ˜ã‚ã†ã¨ã—ãŸã‚‰ã€Œç©ºæŒ¯ã‚Šã€
         int current = core.colorSelector.currentColor;
-        // Fƒ~ƒXƒ}ƒbƒ`F‹óU‚èƒyƒiƒ‹ƒeƒBiƒpƒ[‘SÁ”ï{F‚ğ1‚Âi‚ß‚éj
+        // è‰²ãƒŸã‚¹ãƒãƒƒãƒï¼šç©ºæŒ¯ã‚ŠãƒšãƒŠãƒ«ãƒ†ã‚£ï¼ˆãƒ‘ãƒ¯ãƒ¼å…¨æ¶ˆè²»ï¼‹è‰²ã‚’1ã¤é€²ã‚ã‚‹ï¼‰
         if (cellColor != current)
         {
-            Debug.Log($"BoardController.DigAt: Fƒ~ƒXƒ}ƒbƒ`! target={cellColor}, current={current} ¨ ƒpƒ[ƒŠƒZƒbƒg•Fƒ[ƒe");
+            Debug.Log($"BoardController.DigAt: è‰²ãƒŸã‚¹ãƒãƒƒãƒ! target={cellColor}, current={current} â†’ ãƒ‘ãƒ¯ãƒ¼ãƒªã‚»ãƒƒãƒˆï¼†è‰²ãƒ­ãƒ¼ãƒ†");
 
-            // ƒpƒ[‚ğƒŠƒZƒbƒg
+            // ãƒ‘ãƒ¯ãƒ¼ã‚’ãƒªã‚»ãƒƒãƒˆ
             core.power = 0;
 
             if (view != null && GameManager.Instance.Power != null)
             {
-                GameManager.Instance.Power.ResetAll();
-                // © ˜_—•ƒQ[ƒW‚ğ—¼•ûƒ[ƒ‚É
+                GameManager.Instance.Power.ResetPower();
+                // â† è«–ç†ï¼†ã‚²ãƒ¼ã‚¸ã‚’ä¸¡æ–¹ã‚¼ãƒ­ã«
             }
-            // F‚ğ 1‚Âi‚ß‚éinow © next1, next1 © next2, next2 © ƒ‰ƒ“ƒ_ƒ€j
+            // è‰²ã‚’ 1ã¤é€²ã‚ã‚‹ï¼ˆnow â† next1, next1 â† next2, next2 â† ãƒ©ãƒ³ãƒ€ãƒ ï¼‰
             core.colorSelector.ShiftColors();
-            // UI‚Í–ˆƒtƒŒ[ƒ€ colorSelector / power ‚ğŒ©‚Ä‚¢‚é‚Ì‚ÅA‚±‚±‚Å’l‚¾‚¯•Ï‚¦‚ê‚ÎOK
+            if (chainCharacter != null)
+            {
+                chainCharacter.OnChainResolved(0, true);
+            }
+            // UIã¯æ¯ãƒ•ãƒ¬ãƒ¼ãƒ  colorSelector / power ã‚’è¦‹ã¦ã„ã‚‹ã®ã§ã€ã“ã“ã§å€¤ã ã‘å¤‰ãˆã‚Œã°OK
             return EmptyResult();
         }
 
-        // ‚±‚±‚Ü‚Å—ˆ‚½‚çu³‚µ‚¢F‚ÅŒ@‚Á‚½v¨ Œ@í{˜A½Às
+        // ã“ã“ã¾ã§æ¥ãŸã‚‰ã€Œæ­£ã—ã„è‰²ã§æ˜ã£ãŸã€â†’ æ˜å‰Šï¼‹é€£é–å®Ÿè¡Œ
         int oldPower = core.power;
 
         DigChainResult res = core.DigAndChainWithSteps(gridY, gridX);
 
         if (res.totalCrushed == 0)
         {
-            Debug.Log("BoardController.DigAt: Œ@‚Á‚½‚ªÁ‚¦‚éƒuƒƒbƒN‚Í‚ ‚è‚Ü‚¹‚ñ‚Å‚µ‚½B");
+            Debug.Log("BoardController.DigAt: æ˜ã£ãŸãŒæ¶ˆãˆã‚‹ãƒ–ãƒ­ãƒƒã‚¯ã¯ã‚ã‚Šã¾ã›ã‚“ã§ã—ãŸã€‚");
+            // Busyã«ã—ãªã„
+            // ï¼ˆå¿…è¦ãªã‚‰ chainCharacter.OnChainResolved(0,false) ã‚’å‘¼ã¶ã®ã‚‚ã‚ã‚Šï¼‰
             return res;
         }
 
+
         int newPower = core.power;
 
-        // ”Õ–Ê‚É‘¶İ‚·‚éFƒŠƒXƒg‚ğXV‚µA‚»‚Ì’†‚©‚çŸ‚ÌF‚ğŒˆ‚ß‚é
+        // ç›¤é¢ã«å­˜åœ¨ã™ã‚‹è‰²ãƒªã‚¹ãƒˆã‚’æ›´æ–°ã—ã€ãã®ä¸­ã‹ã‚‰æ¬¡ã®è‰²ã‚’æ±ºã‚ã‚‹
         core.colorSelector.UpdateAvailableColors(core.grid);
         core.colorSelector.ShiftColors();
 
-        // Œ©‚½–ÚXViƒAƒjƒ[ƒVƒ‡ƒ“j
+        // è¦‹ãŸç›®æ›´æ–°ï¼ˆã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ï¼‰
         if (view != null)
         {
-            view.PlayDigChainAnimation(res, oldPower, newPower);
+            SetBoardBusy(true, "DigChainAnimation start");
+
+            view.PlayDigChainAnimation(res, oldPower, newPower, () =>
+            {
+                
+
+                OnBoardAnimationFinished();
+            });
+
         }
         else
         {
-            Debug.LogWarning("BoardController: view ‚ª–¢İ’è‚Å‚·B");
+            Debug.LogWarning("BoardController: view ãŒæœªè¨­å®šã§ã™ã€‚");
         }
 
-        Debug.Log($"BoardController.DigAt: total={res.totalCrushed}, chain={res.chainCount}, power={core.power}");
         return res;
     }
-    // Œ@‚è‚Æ“¯‚¶‚æ‚¤‚ÉA(gridY, gridX) ‚É currentColor ‚ğ’u‚­
+    // æ˜ã‚Šã¨åŒã˜ã‚ˆã†ã«ã€(gridY, gridX) ã« currentColor ã‚’ç½®ã
     public DigChainResult PlaceAt(int gridY, int gridX)
     {
         var empty = new DigChainResult
@@ -166,54 +321,60 @@ public class BoardController : MonoBehaviour
 
         if (core == null || view == null || core.colorSelector == null)
         {
-            Debug.LogWarning("BoardController.PlaceAt: core / view / colorSelector ‚ªİ’è‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+            Debug.LogWarning("BoardController.PlaceAt: core / view / colorSelector ãŒè¨­å®šã•ã‚Œã¦ã„ã¾ã›ã‚“");
             return empty;
         }
 
         if (gridY < 0 || gridY >= core.H || gridX < 0 || gridX >= core.W)
         {
-            Debug.Log($"BoardController.PlaceAt: ”ÍˆÍŠO ({gridY},{gridX})");
+            Debug.Log($"BoardController.PlaceAt: ç¯„å›²å¤– ({gridY},{gridX})");
             return empty;
         }
 
-        // ‚·‚Å‚É–„‚Ü‚Á‚Ä‚¢‚éƒ}ƒX‚É‚Í’u‚©‚È‚¢
+        // ã™ã§ã«åŸ‹ã¾ã£ã¦ã„ã‚‹ãƒã‚¹ã«ã¯ç½®ã‹ãªã„
         if (core.grid[gridY, gridX] != 0)
         {
-            Debug.Log("BoardController.PlaceAt: ‚·‚Å‚ÉƒuƒƒbƒN‚ª‚ ‚é‚Ì‚Å’u‚¯‚È‚¢");
+            Debug.Log("BoardController.PlaceAt: ã™ã§ã«ãƒ–ãƒ­ãƒƒã‚¯ãŒã‚ã‚‹ã®ã§ç½®ã‘ãªã„");
             return empty;
         }
 
         int color = core.colorSelector.currentColor;
-        int oldPower = core.power;   // ’u‚«‚Å‚Í‘‚¦‚È‚¢‚ªŒ`®ã•Û‘¶
+        int oldPower = core.power;   // ç½®ãã§ã¯å¢—ãˆãªã„ãŒå½¢å¼ä¸Šä¿å­˜
 
         DigChainResult res = core.PlaceBlockAndFall(gridY, gridX, color);
-
-        // PlaceBlockAndFall ‚ÌŒ‹‰Ê‚ğŠm”F
+        if (seSource != null && placeSE != null)
+        {
+            seSource.PlayOneShot(placeSE);
+        }
+        // PlaceBlockAndFall ã®çµæœã‚’ç¢ºèª
         bool hasStep0 = (res.steps != null && res.steps.Count > 0);
         bool hasFall = hasStep0 &&
                         res.steps[0].fallInfos != null &&
                         res.steps[0].fallInfos.Count > 0;
 
-        // š 1) ˆêØ—‰º‚ª”­¶‚µ‚È‚©‚Á‚½i‚»‚Ìê‚É’u‚©‚ê‚½jê‡
+        // â˜… 1) ä¸€åˆ‡è½ä¸‹ãŒç™ºç”Ÿã—ãªã‹ã£ãŸï¼ˆï¼ãã®å ´ã«ç½®ã‹ã‚ŒãŸï¼‰å ´åˆ
         if (!hasFall)
         {
-            // grid ã‚Í‚·‚Å‚ÉXV‚³‚ê‚Ä‚¢‚é‘O’ñ
+            // grid ä¸Šã¯ã™ã§ã«æ›´æ–°ã•ã‚Œã¦ã„ã‚‹å‰æ
             view.EnsureBlockVisualAt(gridY, gridX);
 
-            // Fƒ[ƒe[ƒVƒ‡ƒ“‚¾‚¯‰ñ‚·
+            // è‰²ãƒ­ãƒ¼ãƒ†ãƒ¼ã‚·ãƒ§ãƒ³ã ã‘å›ã™
             core.colorSelector.ShiftColors();
 
-            Debug.Log("BoardController.PlaceAt: —‰º‚È‚µ”z’u ¨ ‚»‚Ìê‚Å•\¦‚Ì‚İ");
+            Debug.Log("BoardController.PlaceAt: è½ä¸‹ãªã—é…ç½® â†’ ãã®å ´ã§è¡¨ç¤ºã®ã¿");
             return res;
         }
 
-        // š 2) —‰º‚ª”­¶‚µ‚½ê‡‚ÍƒAƒjƒ[ƒVƒ‡ƒ“‚É”C‚¹‚é
+        // â˜… 2) è½ä¸‹ãŒç™ºç”Ÿã—ãŸå ´åˆã¯ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã«ä»»ã›ã‚‹
         core.colorSelector.ShiftColors();
-        view.PlayDigChainAnimation(res, oldPower, core.power);  // power ‚Í‘‚¦‚È‚¢‘z’è
+        view.PlayDigChainAnimation(res, oldPower, core.power, OnBoardAnimationFinished);  // power ã¯å¢—ãˆãªã„æƒ³å®š
 
-        Debug.Log("BoardController.PlaceAt: —‰º‚ ‚è”z’u ¨ ƒAƒjƒÄ¶");
+        Debug.Log("BoardController.PlaceAt: è½ä¸‹ã‚ã‚Šé…ç½® â†’ ã‚¢ãƒ‹ãƒ¡å†ç”Ÿ");
         return res;
     }
+    
+
+
 
 
 }
